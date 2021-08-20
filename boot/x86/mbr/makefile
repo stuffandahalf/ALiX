@@ -1,16 +1,17 @@
 .POSIX:
 
-LDFLAGS+=-Ttext 0x7a00 --oformat binary
+all: mbr.bin
 
-TARGET=mbr.bin
-OBJS=mbr.o
+mbr.bin: mbr.elf
+	objcopy -O binary mbr.elf mbr.bin
 
-all: $(TARGET)
+mbr.elf: linker.ld mbr.o
+	$(LD) $(LDFLAGS) -T linker.ld -o mbr.elf mbr.o
 
-$(TARGET): $(OBJS)
-	$(LD) $(LDFLAGS) -o $(TARGET) $(OBJS)
+mbr.o: mbr.s ../read.s
+	$(AS) $(ASFLAGS) -o mbr.o mbr.s
 
 clean:
-	rm -f $(TARGET)
-	rm -f $(OBJS)
+	rm -f mbr.bin mbr.elf mbr.o
+
 

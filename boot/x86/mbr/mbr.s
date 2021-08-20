@@ -1,112 +1,180 @@
 	.code16
+	.text
 	.globl _start
 
-	.set LOAD_ADDR, 0x7c00
-	.set LINK_ADDR, top
-	.set MBR_SZ, bottom - top
-	.set PART_ENTRY_SZ, 16
-
-	.set BOOTABLE_FLAG, 0x80
+	LOAD_ADDR = 0x7c00
+	LINK_ADDR = top
+	MBR_SZ = bottom - top
 
 top:
-	# set up stack
+	cli
+
+	/ set up stack
 	xorw %ax, %ax
 	movw %ax, %ss
-	movw $LOAD_ADDR, %sp
+	movw $top, %sp
 
-	# preserve PnP address
+	/ preserve PnP pointer
 	pushw %es
 	pushw %di
-	pushw %dx
 
-	# finish preparing environment
+	/ clear remaining segments
 	movw %ax, %es
-
-	# relocate loaded mbr to link address
-	movw $MBR_SZ, %cx
+	movw %ax, %ds
+	
+	/ copy mbr to link address
 	movw $LOAD_ADDR, %si
 	movw $LINK_ADDR, %di
+	movw $MBR_SZ, %cx
 	rep movsb
 
-	ljmp $0, $_start
+	/ jump to load address
+	ljmp $0x0000, $_start
 
 _start:
 	sti
-
-	movw $str0, %si
-	call print
-
-	movb $4, %cl
-	movw $part_tab, %di
+	/ start checking partition table entries
+	movw $part_tab, %si
 1:
-	incb part
-	movb (%di), %al
-	testb $BOOTABLE_FLAG, %al
-	jnz 2f
-	addw $PART_ENTRY_SZ, %di
-	decb %cl
-	jnz 1b
-	jmp halt
-2:
-	movb 1(%di), %dh
-	movw 2(%di), %cx
-	movw $LOAD_ADDR, %bx
-	movw $0x0201, %ax
-	int $0x13
-	jnc 3f
-	addw $PART_ENTRY_SZ, %di
-	decb %cl
-	jnz 1b
-	jmp halt
+/	movb (%si), %bl
+	testb $0x80, (%si)
+	jnz load
+	cmpw $boot_sig, %si
+	je noboot
+	addw $0x10, %si
+	jmp 1b
 
-3:
-	movw $str1, %si
+noboot:
+	movw $noboot_str, %si
 	call print
-
-	popw %dx
-	popw %di
-	popw %es
-
-	jmp LOAD_ADDR
-
-halt:
-	pushw %si
-	movw $halt_str, %si
-	call print
-	popw %si
-	cli
 	hlt
 
-print:
-	pushw %ax
-	movb $0x0e, %ah
-1:
-	lodsb
-	testb %al, %al
-	jz 2f
-	int $0x10
-	jmp 1b
-2:
-	popw %ax
-	ret
+load:
+	movb $0x41, %ah
+	movw $0x55aa, %bx
+	int $0x13
+	jc chsload
 
-str0: .asciz "MBR loaded\r\nSearching for bootable partition\r\n"
-str1: .ascii "Jumping to VBR of partition "
-part: .byte '0'
-	.asciz "\r\n"
-halt_str: .asciz "halted"
+lbaload:
+	xorw %ax, %ax
+
+	pushw %ax
+	pushw %ax
+	pushw 10(%si)
+	pushw 8(%si)
+	pushw %ax
+	pushw $LOAD_ADDR
+	incw %ax
+	pushw %ax
+	pushw $0x0010
+	movw %sp, %si
+	movb $0x42, %ah
+	int $0x13
+	
+	jc ioerr
+	addw $0x0010, %sp
+	jmp loaded
+
+chsload:
+	pushw %dx
+
+	/ get drive parameters
+	movb $0x08, %ah
+	xorw %di, %di
+	int $0x13
+
+	andw $0x003f, %cx
+
+	movb %dh, %bl
+	xorb %bh, %bh
+	incw %bx
+	/ %cx = sectors per track
+	/ %bx = nheads
+
+	/ load lba into %dx:%ax
+	movw 8(%si), %ax
+	movw 10(%si), %dx
+
+	divw %cx
+	/ %ax = temp
+	/ %dx = sector-1
+	incw %dx
+	pushw %dx
+
+	xorw %dx, %dx
+	divw %bx
+	/ %ax = cylinder
+	/ %dx = head
+
+	/ reconstruct for chs sector read
+	movb %al, %ch
+	popw %ax
+	movb %al, %cl
+	movw %dx, %bx
+	popw %dx
+	movb %bl, %dh
+
+	/ initialize reset counter
+	movb $0x03, %al
+	
+1:
+	testb %al, %al
+	jz ioerr
+	pushw %ax
+
+	/ reset disk
+	xorb %ah, %ah
+	int $0x13
+
+	/ attempt read
+	movw $0x0201, %ax
+	movw $0x7c00, %bx
+	int $0x13
+
+	popw %ax
+
+	/ if disk read succeeded
+	jnc loaded
+
+	decb %al
+	jmp 1b
+
+ioerr:
+	movw $fail_str, %si
+	call print
+	cli
+	hlt
+	
+loaded:
+	popw %di
+	popw %es
+	ljmp $0x0000, $LOAD_ADDR
+
+	.include "../print.s"
+
+str:
+	.asciz "Hello World!\r\n"
+noboot_str:
+	.asciz "Not a bootable volume"
+fail_str:
+	.asciz "Failed to load volume boot record"
+
+nheads:
+	.byte 0
+sects_per_track:
+	.byte 0
 
 	.org top+446
 
 part_tab:
-#part0: .quad 0, 0
-part0: .byte 0x80, 0, 2, 0, 0x0b, 0, 0, 0
-.long 2, 2880
-part1: .quad 0, 0
-part2: .quad 0, 0
-part3: .quad 0, 0
+	/.fill 16, 1, 0
+	.byte 0x80, 0x01, 0x01, 0x00, 0x72, 0x0f, 0x7f, 0x27, 0x3f, 0x00, 0x00, 0x00, 0x41, 0x8d, 0x04, 0x00
+	.fill 16, 1, 0
+	.fill 16, 1, 0
+	.fill 16, 1, 0
 
-boot_sig: .byte 0x55, 0xaa
+boot_sig:
+	.byte 0x55, 0xaa
 
 bottom:
 
