@@ -23,6 +23,20 @@ top:
 _start:
 	sti
 
+	/ movw $str, %si
+	/ call print
+
+pause:
+	testb %dl, %dl
+	jns ready
+
+	/ figure out lba0 of current partition
+	leaw 8(%si), %si
+	movw $lba0, %di
+	movw $4, %cx
+	rep movsb
+
+ready:
 	movw $str, %si
 	call print
 
@@ -32,7 +46,11 @@ halt:
 
 	.include "../print.s"
 
-str: .asciz "Hello World!"
+str:
+	.asciz "Hello World!"
+
+lba0:
+	.long 0
 
 	.org top+510
 
@@ -40,3 +58,4 @@ boot_sig:
 	.byte 0x55, 0xaa
 
 bottom:
+

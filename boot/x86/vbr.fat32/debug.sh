@@ -1,3 +1,3 @@
 #!/bin/sh
 
-gdb -s vbr.v7fs.elf
+gdb -s vbr.fat32.elf
