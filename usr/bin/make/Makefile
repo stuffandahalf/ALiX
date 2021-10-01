@@ -1,16 +1,6 @@
-.POSIX:
-
-TARGET=make
-SRCS=main.c
-OBJS=$(SRCS:.c=.o)
-
-all: $(TARGET)
-
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS)
+make: main.c ht.c
+	cc --std=c89 -o make main.c ht.c
 
 clean:
-	rm -f $(TARGET)
-	rm -f $(OBJS)
-
+	rm -f make
 
