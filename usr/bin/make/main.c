@@ -7,6 +7,7 @@
 #include <ctype.h>
 
 #include "ht.h"
+#include "al.h"
 
 #define FNAME_COUNT 6
 const char *mkfnames[FNAME_COUNT] = {
@@ -18,23 +19,23 @@ const char *mkfnames[FNAME_COUNT] = {
 	"SCCS/s.Makefile"
 };
 
-int parse(FILE *mkfile);
-
 struct target {
-	const char **results;
-	int resultc;
-	const struct target **deps;
-	int depsc;
-	const char **comms;
-	int commsc;
+	ARRAYLIST(const char *) results;
+	ARRAYLIST(const struct target *) deps;
+	ARRAYLIST(const char *) comms;
 };
 
 FILE *mkfile;
-struct target *targets;
-struct ht_node target_ht;
-struct target *targets;
-size_t target_c = 0;
-size_t target_sz = 0;
+
+// hash map of targets
+struct ht_node target_ht = { .value = -1, .children = { 0 } };
+ARRAYLIST(struct target) targets = { .a = NULL, .sz = 0, .c = 0 };
+
+// hash map of variables
+struct ht_node var_ht = { .value = -1, .children = { 0 } };
+ARRAYLIST(const char *) vars = { .a = NULL, .sz = 0, .c = 0 };
+
+int parse(FILE *mkfile);
 
 // free all held resources at application exit
 void release(void)
@@ -51,7 +52,7 @@ int main(int argc, char **argv)
 	atexit(release);
 
 	for (i = 0; i < FNAME_COUNT && mkfile == NULL; i++) {
-		if (access(mkfnames[i], F_OK)) {
+		if (access(mkfnames[i], R_OK)) {
 			continue;
 		}
 		mkfile = fopen(mkfnames[i], "r");
@@ -65,8 +66,10 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	// handle file here
+	// set up hashtables
 	
+
+	// handle file here	
 	if (parse(mkfile)) {
 		fprintf(stderr, "Failed to parse makefile\n");
 		return 1;
@@ -93,7 +96,7 @@ int main(int argc, char **argv)
 int parse(FILE *mkfile)
 {
 	char buffer[BUFFER_SZ];
-	char *c;
+	char *start, *c;
 	struct target *target = NULL;
 	int cont_line = 0;
 
@@ -111,16 +114,18 @@ int parse(FILE *mkfile)
 			printf("%s\n", buffer);
 			/* new target */
 
-			if (target_c == target_sz) {
-				target_sz += 3;
-				targets = realloc(targets, sizeof(struct target) * target_sz);
-			}
-			target_c++;
-			target = &targets[target_c - 1];
-
+			start = c;
+			/*while (!isspace(*c) && *c != ':') {
+				// find next space
+			}*/
 			
 		} else {
 			/* new command */
+			while (isspace(*c) && *c) c++;
+			if (!*c) {
+				continue;
+			}
+			printf("%s\n", c);
 		}
 	}
 
