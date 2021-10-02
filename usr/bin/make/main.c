@@ -20,7 +20,7 @@ const char *mkfnames[FNAME_COUNT] = {
 };
 
 struct target {
-	ARRAYLIST(const char *) results;
+	ARRAYLIST(const char *) artifacts;
 	ARRAYLIST(const struct target *) deps;
 	ARRAYLIST(const char *) comms;
 };
@@ -35,6 +35,7 @@ ARRAYLIST(struct target) targets = { .a = NULL, .sz = 0, .c = 0 };
 struct ht_node var_ht = { .value = -1, .children = { 0 } };
 ARRAYLIST(const char *) vars = { .a = NULL, .sz = 0, .c = 0 };
 
+int configure(int argc, char **argv);
 int parse(FILE *mkfile);
 
 // free all held resources at application exit
@@ -50,6 +51,10 @@ int main(int argc, char **argv)
 
 	setlocale(LC_ALL, "");
 	atexit(release);
+
+	if (configure(argc, argv)) {
+		return 1;
+	}
 
 	for (i = 0; i < FNAME_COUNT && mkfile == NULL; i++) {
 		if (access(mkfnames[i], R_OK)) {
@@ -92,13 +97,57 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+int configure(int argc, char **argv)
+{
+	int c;
+	while ((c = getopt(argc, argv, "ef:hiknpqrSst")) != -1) {
+		switch (c) {
+		case 'e':
+			break;
+		case 'f':
+			break;
+		case 'i':
+			break;
+		case 'k':
+			break;
+		case 'n':
+			break;
+		case 'p':
+			break;
+		case 'q':
+			break;
+		case 'r':
+			break;
+		case 'S':
+			break;
+		case 's':
+			break;
+		case 't':
+			break;
+		case 'h':
+		case '?':
+		default:
+			fprintf(stderr, "%s [-e] [-f makefile] [-i] [-k | -S] [-n] [-p] [-q] [-r] [-s] [-t] [MACRO=value...] [target...]\n", argv[0]);
+			return 1;
+			break;
+		}
+	}
+	return 0;
+}
+
 #define BUFFER_SZ (256)
+
+#define TARGET_STATE_ARTIFACT	1
+#define TARGET_STATE_DEPS		2
+#define TARGET_STATE_COMMS		4
+#define TARGET_STATE_ESCAPE		8
+#define TARGET_STATE_CONTLN		16
 int parse(FILE *mkfile)
 {
-	char buffer[BUFFER_SZ];
+	static char buffer[BUFFER_SZ];
 	char *start, *c;
-	struct target *target = NULL;
-	int cont_line = 0;
+	struct target *tgt = NULL;
+	int state = TARGET_STATE_ARTIFACT;
 
 	while (fgets(buffer, BUFFER_SZ, mkfile)) {
 		c = buffer;
@@ -106,27 +155,34 @@ int parse(FILE *mkfile)
 			continue;
 		}
 
-/*		if (cont_line) {
-			while (isspace(*c++));
-		}*/
-
-		if (!isspace(*c)) {
+		// if not a line continuation and line does not begin with a space
+		if (!(state & TARGET_STATE_CONTLN) && !isspace(*c)) {
 			printf("%s\n", buffer);
 			/* new target */
-
-			start = c;
-			/*while (!isspace(*c) && *c != ':') {
-				// find next space
-			}*/
-			
-		} else {
-			/* new command */
-			while (isspace(*c) && *c) c++;
-			if (!*c) {
-				continue;
+			if (targets.c == targets.sz) {
+				targets.sz += 3;
 			}
-			printf("%s\n", c);
+			targets.a = realloc(targets.a, sizeof(ARRAYLIST(struct target)) * targets.sz);
+			tgt = &targets.a[targets.c++];
+
+			// initialize fields of target
+			tgt->artifacts.a = NULL;
+			tgt->artifacts.sz = 0;
+			tgt->artifacts.c = 0;
+
+			tgt->deps.a = NULL;
+			tgt->deps.sz = 0;
+			tgt->deps.c = 0;
+
+			tgt->comms.a = NULL;
+			tgt->comms.sz = 0;
+			tgt->comms.c = 0;
+
+			state = TARGET_STATE_ARTIFACT;
 		}
+	
+		// populate tgt by parsing buffer
+		// use state to track 
 	}
 
 	return 0;
