@@ -20,5 +20,9 @@
 	} \
 }
 
+#define AL_FREE(al) { \
+	free(al.a); \
+}
+
 #endif /* AL_H */
 
