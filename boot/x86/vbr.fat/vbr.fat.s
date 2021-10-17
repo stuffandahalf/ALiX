@@ -14,7 +14,7 @@ top:
 	jmp setup
 	nop
 	.ascii "ALiX    "
-
+data:
 bpb:
 	.word 512	# bytes per sector
 	.byte 0		# sectors per cluster
@@ -58,6 +58,9 @@ ebpb:
 	.ascii "FAT32   "	# fs identifier
 .endif
 
+lba0:
+	.long 0
+
 setup:
 	cli
 
@@ -82,7 +85,6 @@ _start:
 	/ movw $str, %si
 	/ call print
 
-pause:
 	testb %dl, %dl
 	jns ready
 
@@ -92,7 +94,10 @@ pause:
 	movw $4, %cx
 	rep movsb
 
+	movw $data, %si
+
 ready:
+	call read
 	movw $str, %si
 	call print
 
@@ -104,9 +109,6 @@ halt:
 
 str:
 	.asciz "Hello World!"
-
-lba0:
-	.long 0
 
 	.org top+510
 
