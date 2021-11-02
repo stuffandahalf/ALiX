@@ -58,8 +58,17 @@ ebpb:
 	.ascii "FAT32   "	# fs identifier
 .endif
 
+/ data
 lba0:
 	.long 0
+
+	.equ FNAME_SZ, 8+3
+fname:
+	.ascii "BOOTLD  "
+	.ascii "BIN"
+
+str:
+	.asciz "Hello World!"
 
 setup:
 	cli
@@ -106,11 +115,9 @@ halt:
 	hlt
 
 	.include "../print.s"
+	.include "read.s"
 
-str:
-	.asciz "Hello World!"
-
-	.org top+510
+	/.org top+510
 
 boot_sig:
 	.byte 0x55, 0xaa

@@ -1,8 +1,10 @@
+	.globl read
+
 / %dx:%ax = 32-bit lba
 / %bx = drive number
-/ maybe %cx = nuber of sectors
+/ maybe %cl = nuber of sectors
 / %es:%di = destination buffer
-read:
+/read:
 	/ check for int13h extensions
 	pushw %bx
 	pushw %dx
@@ -15,23 +17,30 @@ read:
 
 	jc read_l
 
-read_m:
+read_e:
 	/ use extensions
 
-
+read:
 read_l:
 	/ legacy read
+	pushw %di
+	movw %es, %di
+	pushw %di
+	pushw %bx
+	pushw %ax
+	pushw %dx
 
 	/ get drive parameters
-	pushw %di
 	movb $0x08, %ah
+	movb %bl, %dl
 	xorw %di, %di
 	movw %di, %es
 	int $0x13
-	popw %di
 
+	/ store number of heads in %bx
 	/ pop lba off stack
-	movw %dx, %bx
+	movzx %dh, %bx
+	incw %bx
 	popw %ax
 	popw %dx
 
@@ -44,11 +53,7 @@ read_l:
 
 	pushw %dx
 	xorw %dx, %dx
-	movb %bh, %bl
-	xorb %bh, %bh
-/	incb %bl
 	divw %bx
-
 	popw %cx
 
 	/ %ax = cylinder
@@ -62,12 +67,14 @@ read_l:
 	movb %dl, %dh
 	popw %bx
 	movb %bl, %dl
+	popw %di
+	movw %di, %es
+	popw %bx
 	movw $0x0201, %ax
-	
+
 	/ set up target address
 	/ set up sector count
 	/ call int 13h
-	movw %di, %bx
 	int $0x13
 
 	ret

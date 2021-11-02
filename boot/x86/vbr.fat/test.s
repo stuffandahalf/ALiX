@@ -12,6 +12,8 @@ top:
 _start:
 	sti
 
+	/ load this boot sector to address 0x500
+
 	movw %dx, %bx
 	xorw %dx, %dx
 	xorw %ax, %ax
