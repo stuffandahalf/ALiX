@@ -11,6 +11,7 @@
 .endif
 
 top:
+_start:
 	jmp setup
 	nop
 	.ascii "ALiX    "
@@ -23,7 +24,7 @@ bpb:
 	.word 0		# number of directory entries
 	.word 0		# number of sectors on volume (if 0, then use large number of sectors)
 	.byte 0		# media descriptor
-	.word 0		# number of sectors per FAT (FAT 12/16 only(
+	.word 0		# number of sectors per FAT (FAT 12/16 only)
 	.word 0		# sectors per track
 	.word 0		# number of heads
 	.long 0		# hidden sectors
@@ -67,9 +68,6 @@ fname:
 	.ascii "BOOTLD  "
 	.ascii "BIN"
 
-str:
-	.asciz "Hello World!"
-
 setup:
 	cli
 
@@ -86,13 +84,10 @@ setup:
 	movw %ax, %es
 
 	/ long jump to clear %cs
-	ljmp $0x0000, $_start
+	ljmp $0x0000, $main
 
-_start:
+main:
 	sti
-
-	/ movw $str, %si
-	/ call print
 
 	testb %dl, %dl
 	jns ready
@@ -102,22 +97,26 @@ _start:
 	movw $lba0, %di
 	movw $4, %cx
 	rep movsb
-
 	movw $data, %si
 
-ready:
-	call read
-	movw $str, %si
-	call print
+	/ store drive number for later use
+.if FAT_VERSION == 12 || FAT_VERSION == 16
+	movb %dl, 20(%si)
+.endif
+.if FAT_VERSION == 32
+	movb %dl, 46(%si)
+.endif
+
+	/ load root directory
 
 halt:
 	cli
 	hlt
 
-	.include "../print.s"
-	.include "read.s"
+	/.include "../print.s"
+	.include "../read.s"
 
-	/.org top+510
+	.org top+510
 
 boot_sig:
 	.byte 0x55, 0xaa
