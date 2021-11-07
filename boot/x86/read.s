@@ -1,4 +1,5 @@
 	.code16
+	.text
 	.globl read
 
 / stack:

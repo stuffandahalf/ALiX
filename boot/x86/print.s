@@ -1,3 +1,7 @@
+	.code16
+	.text
+	.globl print
+
 print:
     pushw %ax
     movb $0x0e, %ah

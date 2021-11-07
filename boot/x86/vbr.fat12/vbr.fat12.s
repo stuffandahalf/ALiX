@@ -2,15 +2,6 @@
 	.text
 	.globl _start
 
-.ifndef FAT_VERSION
-	.equ FAT_VERSION, 32
-.endif
-
-.if FAT_VERSION != 12 && FAT_VERSION != 16 && FAT_VERSION != 32
-	.err Invalid definition of FAT_VERSION
-.endif
-
-top:
 _start:
 	jmp setup
 	nop
@@ -30,36 +21,13 @@ bpb:
 	.long 0		# hidden sectors
 	.long 0		# large number of sectors
 ebpb:
-.if FAT_VERSION == 12 || FAT_VERSION == 16
 	.byte 0		# drive number
 	.byte 0		# reserved (flags in NT)
 	.byte 0		# signature (0x28 or 0x29)
 	.long 0		# volume serial number
 	.ascii "ALiX boot  "	# volume label
-.if FAT_VERSION == 12
 	.ascii "FAT12   "	# fs identifier
-.endif
-.if FAT_VERSION == 16
-	.ascii "FAT16   "	# fs identifier
-.endif
-.endif
-.if FAT_VERSION == 32
-	.long 0		# sectors per FAT
-	.word 0		# flags
-	.word 0		# FAT version
-	.long 2		# cluster number of root partition
-	.word 0		# sector of FSInfo
-	.word 0		# sector of backup boot sector
-	.zero 12	# reserved
-	.byte 0		# drive number
-	.byte 0		# reserved (flags in NT)
-	.byte 0		# signature (0x28 or 0x29)
-	.long 0		# volume serial number
-	.ascii "ALiX boot  "	# volume label
-	.ascii "FAT32   "	# fs identifier
-.endif
 
-/ data
 lba0:
 	.long 0
 
@@ -67,6 +35,9 @@ lba0:
 fname:
 	.ascii "BOOTLD  "
 	.ascii "BIN"
+
+sec_sz:
+	.word 0x0200
 
 setup:
 	cli
@@ -97,30 +68,34 @@ main:
 	movw $lba0, %di
 	movw $4, %cx
 	rep movsb
-	movw $data, %si
+	
+	movw $data, %bp
 
 1:
 	/ store drive number for later use
-.if FAT_VERSION == 12 || FAT_VERSION == 16
-	movb %dl, 20(%si)
-.endif
-.if FAT_VERSION == 32
-	movb %dl, 46(%si)
-.endif
+	movb %dl, 20(%bp)
+
+	/ get size of sectors loaded
+	movb $0x41, %ah
+	movw $0x55aa, %bx
+	int $0x13
+	jc 1f
+
+	subw $0x1c, %sp
+	pushw $0x001e
+	movw %sp, %si
+	movb $0x48, %ah
+	int $0x13
+	pushw 18(%si)
+	popw (sec_sz-data)(%bp)
+	addw $0x1e, %sp
+1:
 
 	/ load root directory
+	/ lookup file
+	/ load file
 
 halt:
 	cli
 	hlt
-
-	/.include "../print.s"
-	/.include "../read.s"
-
-	/.org top+510
-
-/boot_sig:
-/	.byte 0x55, 0xaa
-
-bottom:
 

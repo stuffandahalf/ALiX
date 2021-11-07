@@ -29,10 +29,10 @@ pause:
 	cli
 	hlt
 
-	.include "../read.s"
+	/.include "../read.s"
 
-	.org top+510
+	/.org top+510
 
-boot_sig:
-	.byte 0x55, 0xaa
+/boot_sig:
+/	.byte 0x55, 0xaa
 
