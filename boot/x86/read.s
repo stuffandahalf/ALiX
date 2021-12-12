@@ -2,6 +2,9 @@
 	.text
 	.globl read
 
+// TODO: rework extension read method to support sector sizes
+// other than 512 bytes
+
 / stack:
 / 0: return address
 / 2: 32-bit lba (little endian)
