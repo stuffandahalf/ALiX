@@ -1,0 +1,27 @@
+#!/bin/sh
+
+# Determine current directory
+DIR="$PWD"
+if [ $# -gt 0 ]; then
+	DIR="$1"
+fi
+
+# Lookup subdirectories
+SUBDIRS=`ls -d "$DIR"*/ 2> /dev/null`
+if [ $? -ne 0 ]; then
+	exit 0
+fi
+
+# Recurse through subdirectories and configure them
+echo "$SUBDIRS"
+for SUBDIR in $SUBDIRS; do
+	echo "ENTERING $SUBDIR"
+	$0 "$SUBDIR"
+	echo "LEAVING $SUBDIR"
+done
+
+set -e
+
+# look for makefile configuration file
+
+
