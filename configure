@@ -1,5 +1,17 @@
 #!/bin/sh
 
+# Build Variables
+
+TARGET=i386
+export TARGET
+
+# Makefile configuration input file
+IN_MAKEFILE=make.conf
+export IN_MAKEFILE
+# Makefile output file
+OUT_MAKEFILE=makefile
+export OUT_MAKEFILE
+
 # Determine current directory
 DIR="$PWD"
 if [ $# -gt 0 ]; then
@@ -24,4 +36,7 @@ set -e
 
 # look for makefile configuration file
 
+if [ ! -f "$DIR/$IN_MAKEFILE" ]; then
+	exit 1
+fi
 
