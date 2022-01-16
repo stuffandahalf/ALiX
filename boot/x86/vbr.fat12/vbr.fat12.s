@@ -30,14 +30,13 @@ ebpb:
 
 lba0:
 	.long 0
+nsecs:
+	.word 0
 
 	.equ FNAME_SZ, 8+3
 fname:
 	.ascii "BOOTLD  "
 	.ascii "BIN"
-
-sec_sz:
-	.word 0x0200
 
 setup:
 	cli
@@ -68,32 +67,29 @@ main:
 	movw $lba0, %di
 	movw $4, %cx
 	rep movsb
-	
-	movw $data, %bp
 
+	/ $data is 0 for some reason???	
+	movw $data, %bp
+	jmp halt
 1:
 	/ store drive number for later use
 	movb %dl, 20(%bp)
 
-	/ get size of sectors loaded
-	movb $0x41, %ah
-	movw $0x55aa, %bx
-	int $0x13
-	jc 1f
-
-	subw $0x1c, %sp
-	pushw $0x001e
-	movw %sp, %si
-	movb $0x48, %ah
-	int $0x13
-	pushw 18(%si)
-	popw (sec_sz-data)(%bp)
-	addw $0x1e, %sp
-1:
+	/ calculate number of 512 byte sectors to read per fat sector
+	xorw %cx, %cx
+	movw $0x0200, %bx
+	movw (%bp), %ax
+/1:
+/	subw %bx, %ax
+/	incw %cx
+/	jnz 1b
+/	movw %cx, (nsecs-data)(%bp)
 
 	/ load root directory
 	/ lookup file
 	/ load file
+
+	
 
 halt:
 	cli
