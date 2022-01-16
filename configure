@@ -25,8 +25,12 @@ if [ $? -ne 0 ]; then
 fi
 
 # Recurse through subdirectories and configure them
-echo "$SUBDIRS"
+#echo "$SUBDIRS"
 for SUBDIR in $SUBDIRS; do
+	# skip current directory
+	if [ "$SUBDIR" = "$DIR/" ]; then
+		continue
+	fi
 	echo "ENTERING $SUBDIR"
 	$0 "$SUBDIR"
 	echo "LEAVING $SUBDIR"
@@ -39,4 +43,35 @@ set -e
 if [ ! -f "$DIR/$IN_MAKEFILE" ]; then
 	exit 1
 fi
+
+# Import directory make variables as shell variables
+source "$DIR/$IN_MAKEFILE"
+
+echo "CREATING $DIR/$OUT_MAKEFILE"
+
+# create output file
+if [ -e "$DIR/$OUT_MAKEFILE" ]; then
+	rm -f "$DIR/$OUT_MAKEFILE"
+fi
+touch "$DIR/$OUT_MAKEFILE"
+
+# write output file
+printf ".POSIX:\n\n" >> "$DIR/$OUT_MAKEFILE"
+printf "all: $SUBDIR_TARGETS $TARGETS\n\n" >> "$DIR/$OUT_MAKEFILE"
+printf "clean:\n" >> "$DIR/$OUT_MAKEFILE"
+printf "\trm -f *.o\n" >> "$DIR/$OUT_MAKEFILE"
+for SUBDIR in $SUBDIRS; do
+	printf "\tcd $SUBDIR && \$(MAKE) clean\n" >> "$DIR/$OUT_MAKEFILE"
+done
+printf "\n" >> "$DIR/$OUT_MAKEFILE"
+for TARGET in $TARGETS; do
+	# evaluate target variables
+	eval "SOURCES=\${${TARGET}_SOURCES}"
+	OBJECTS=""
+	for SOURCE in $SOURCES; do
+		OBJECTS="$OBJECTS `echo $SOURCE | sed -e "s/\..*$/\.o/"`"
+	done
+
+	printf "$TARGET: $OBJECTS\n" >> "$DIR/$OUT_MAKEFILE"
+done
 
