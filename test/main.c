@@ -1,8 +1,10 @@
 #include <stdio.h>
 
+extern void test(void);
+
 int main(int argc, char **argv)
 {
-	printf("Hello World!\n");
+	test();
 	return 0;
 }
 

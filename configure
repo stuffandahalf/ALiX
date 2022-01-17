@@ -13,28 +13,21 @@ OUT_MAKEFILE=makefile
 export OUT_MAKEFILE
 
 # Determine current directory
-DIR="$PWD"
+DIR="$PWD/"
 if [ $# -gt 0 ]; then
 	DIR="$1"
 fi
 
 # Lookup subdirectories
 SUBDIRS=`ls -d "$DIR"*/ 2> /dev/null`
-if [ $? -ne 0 ]; then
-	exit 0
-fi
-
 # Recurse through subdirectories and configure them
-#echo "$SUBDIRS"
-for SUBDIR in $SUBDIRS; do
-	# skip current directory
-	if [ "$SUBDIR" = "$DIR/" ]; then
-		continue
-	fi
-	echo "ENTERING $SUBDIR"
-	$0 "$SUBDIR"
-	echo "LEAVING $SUBDIR"
-done
+if [ $? -eq 0 ]; then
+	for SUBDIR in $SUBDIRS; do
+		echo "ENTERING $SUBDIR"
+		$0 "$SUBDIR"
+		echo "LEAVING $SUBDIR"
+	done
+fi
 
 set -e
 
@@ -47,23 +40,32 @@ fi
 # Import directory make variables as shell variables
 source "$DIR/$IN_MAKEFILE"
 
-echo "CREATING $DIR/$OUT_MAKEFILE"
+SUBDIR_TARGETS=
+for SUBDIR in $SUBDIRS; do
+	SUBDIR_TARGETS="$SUBDIR_TARGETS $SUBDIR.dir"
+done
+
+echo "CREATING $DIR$OUT_MAKEFILE"
 
 # create output file
-if [ -e "$DIR/$OUT_MAKEFILE" ]; then
-	rm -f "$DIR/$OUT_MAKEFILE"
+if [ -e "$DIR$OUT_MAKEFILE" ]; then
+	rm -f "$DIR$OUT_MAKEFILE"
 fi
-touch "$DIR/$OUT_MAKEFILE"
+touch "$DIR$OUT_MAKEFILE"
 
 # write output file
-printf ".POSIX:\n\n" >> "$DIR/$OUT_MAKEFILE"
-printf "all: $SUBDIR_TARGETS $TARGETS\n\n" >> "$DIR/$OUT_MAKEFILE"
-printf "clean:\n" >> "$DIR/$OUT_MAKEFILE"
-printf "\trm -f *.o\n" >> "$DIR/$OUT_MAKEFILE"
+printf ".POSIX:\n\n" >> "$DIR$OUT_MAKEFILE"
+printf "all: $SUBDIR_TARGETS $TARGETS\n\n" >> "$DIR$OUT_MAKEFILE"
+printf "clean:\n" >> "$DIR$OUT_MAKEFILE"
+printf "\trm -f *.o\n" >> "$DIR$OUT_MAKEFILE"
 for SUBDIR in $SUBDIRS; do
-	printf "\tcd $SUBDIR && \$(MAKE) clean\n" >> "$DIR/$OUT_MAKEFILE"
+	printf "\tcd \"$SUBDIR\" && \$(MAKE) clean\n" >> "$DIR$OUT_MAKEFILE"
 done
-printf "\n" >> "$DIR/$OUT_MAKEFILE"
+printf "\n" >> "$DIR$OUT_MAKEFILE"
+for SUBDIR in $SUBDIRS; do
+	printf "$SUBDIR.dir: $SUBDIR\n" >> "$DIR$OUT_MAKEFILE"
+	printf "\tcd \"$SUBDIR\" && \$(MAKE) all\n\n" >> "$DIR$OUT_MAKEFILE"
+done
 for TARGET in $TARGETS; do
 	# evaluate target variables
 	eval "SOURCES=\${${TARGET}_SOURCES}"
@@ -72,6 +74,7 @@ for TARGET in $TARGETS; do
 		OBJECTS="$OBJECTS `echo $SOURCE | sed -e "s/\..*$/\.o/"`"
 	done
 
-	printf "$TARGET: $OBJECTS\n" >> "$DIR/$OUT_MAKEFILE"
+	printf "$TARGET: $OBJECTS\n" >> "$DIR$OUT_MAKEFILE"
+	printf "\t\$(CC) \$(LDFLAGS) -o $TARGET $OBJECTS\n\n" >> "$DIR$OUT_MAKEFILE"
 done
 
