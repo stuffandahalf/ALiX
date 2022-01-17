@@ -38,7 +38,7 @@ if [ ! -f "$DIR/$IN_MAKEFILE" ]; then
 fi
 
 # Import directory make variables as shell variables
-source "$DIR/$IN_MAKEFILE"
+. "$DIR/$IN_MAKEFILE"
 
 SUBDIR_TARGETS=
 for SUBDIR in $SUBDIRS; do
