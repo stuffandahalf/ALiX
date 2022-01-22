@@ -1,5 +1,17 @@
 #!/bin/sh
 
+# functions to simplify makefile generation
+emit() {
+	echo "$DIR$OUT_MAKEFILE" >&2
+	printf "$@" >> "$DIR$OUT_MAKEFILE"
+}
+
+src2obj() {
+	for SRC in $@; do
+		printf "$SRC" | sed -e "s/\..*$/\.o /"
+	done
+}
+
 # Build Variables
 
 TARGET=i386
@@ -52,29 +64,72 @@ if [ -e "$DIR$OUT_MAKEFILE" ]; then
 	rm -f "$DIR$OUT_MAKEFILE"
 fi
 touch "$DIR$OUT_MAKEFILE"
+BUILD_SOURCES=
+BUILD_ARTIFACTS=
 
 # write output file
-printf ".POSIX:\n\n" >> "$DIR$OUT_MAKEFILE"
-printf "all: $SUBDIR_TARGETS $TARGETS\n\n" >> "$DIR$OUT_MAKEFILE"
-printf "clean:\n" >> "$DIR$OUT_MAKEFILE"
-printf "\trm -f *.o\n" >> "$DIR$OUT_MAKEFILE"
+emit ".POSIX:\n"
+emit "\n"
+emit "all: $SUBDIR_TARGETS $TARGETS $STATIC_LIB_TARGETS $DYNAMIC_LIB_TARGETS\n"
+emit "\n"
 for SUBDIR in $SUBDIRS; do
-	printf "\tcd \"$SUBDIR\" && \$(MAKE) clean\n" >> "$DIR$OUT_MAKEFILE"
-done
-printf "\n" >> "$DIR$OUT_MAKEFILE"
-for SUBDIR in $SUBDIRS; do
-	printf "$SUBDIR.dir: $SUBDIR\n" >> "$DIR$OUT_MAKEFILE"
-	printf "\tcd \"$SUBDIR\" && \$(MAKE) all\n\n" >> "$DIR$OUT_MAKEFILE"
+	emit "$SUBDIR.dir: $SUBDIR\n"
+	emit "\tcd \"$SUBDIR\" && \$(MAKE) all\n"
+	emit "\n"
 done
 for TARGET in $TARGETS; do
 	# evaluate target variables
 	eval "SOURCES=\${${TARGET}_SOURCES}"
-	OBJECTS=""
-	for SOURCE in $SOURCES; do
-		OBJECTS="$OBJECTS `echo $SOURCE | sed -e "s/\..*$/\.o/"`"
-	done
+	OBJECTS="`src2obj $SOURCES`"
 
-	printf "$TARGET: $OBJECTS\n" >> "$DIR$OUT_MAKEFILE"
-	printf "\t\$(CC) \$(LDFLAGS) -o $TARGET $OBJECTS\n\n" >> "$DIR$OUT_MAKEFILE"
+	echo "$TARGET" >&2
+	echo "$SOURCES" >&2
+	echo "$OBJECTS" >&2
+	BUILD_SOURCES="$BUILD_SOURCES $SOURCES"
+	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
+
+	emit "$TARGET: $OBJECTS\n"
+	emit "\t\$(CC) \$(LDFLAGS) -o $TARGET $OBJECTS\n"
+	emit "\n"
 done
+for STATIC_LIB in $STATIC_LIB_TARGETS; do
+	# evaluate library variables
+	eval "SOURCES=\${$STATIC_LIB}_SOURCES}"
+	OBJECTS="`src2obj $SOURCES`"
+	BUILD_SOURCES="$BUILD_SOURCES $SOURCES"
+	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
+
+	# TODO: emit target linking
+done
+for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
+	# evaluate library variables
+	eval "SOURCES=\${$DYNAMIC_LIB}_SOURCES}"
+	OBJECTS="`src2obj $SOURCES`"
+	BUILD_SOURCES="$BUILD_SOURCES $SOURCES"
+	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
+
+	# TODO: emit target linking
+done
+for SOURCE in $BUILD_SOURCES; do
+	emit "`src2obj $SOURCE`: $SOURCE\n"
+	emit "\t\$(CC) \$(CFLAGS) -c -o `src2obj $SOURCE` $SOURCE\n"
+	emit "\n"
+done
+emit "clean:\n"
+for SUBDIR in $SUBDIRS; do
+	emit "\tcd \"$SUBDIR\" && \$(MAKE) clean\n"
+done
+for ARTIFACT in $BUILD_ARTIFACTS; do
+	emit "\trm -f $ARTIFACT\n"
+done
+for TARGET in $TARGETS; do
+	emit "\trm -f $TARGET\n"
+done
+for STATIC_LIB in $STATIC_LIB_TARGETS; do
+	emit "\trm -f $STATIC_LIB\n"
+done
+for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
+	emit "\trm -f $DYNAMIC_LIB\n"
+done
+emit "\n"
 
