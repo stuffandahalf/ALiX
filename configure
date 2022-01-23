@@ -146,7 +146,7 @@ for STATIC_LIB in $STATIC_LIB_TARGETS; do
 
 	# TODO: emit target linking
 	emit "`staticlib_fname $STATIC_LIB`: $OBJECTS $EXTRA_DEPS\n"
-	emit "\t\$(AR) \$(ARFLAGS) -o lib$STATIC_LIB.a $OBJECTS\n"
+	emit "\t\$(AR) \$(ARFLAGS) lib$STATIC_LIB.a $OBJECTS\n"
 	emit "\n"
 done
 for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
