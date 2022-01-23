@@ -32,9 +32,27 @@ src2obj() {
 	done
 }
 
+staticlib_fname() {
+	for LIB in $@; do
+		printf " lib$LIB.a"
+	done
+}
+
+ldargs() {
+	for LIB in $@; do
+		printf "-"
+		printf "l $LIB "
+	done
+	printf "\n"
+}
+
+# TODO: Configure environment from commandline flags
+
 # Build Variables
 
 TARGET=i386
+
+# TODO: Lookup tools
 
 # Makefile configuration input file
 IN_MAKEFILE=make.conf
@@ -90,7 +108,7 @@ BUILD_ARTIFACTS=
 # write output file
 emit ".POSIX:\n"
 emit "\n"
-emit "all: $SUBDIR_TARGETS $TARGETS $STATIC_LIB_TARGETS $DYNAMIC_LIB_TARGETS\n"
+emit "all: $SUBDIR_TARGETS $TARGETS `staticlib_fname $STATIC_LIB_TARGETS` $DYNAMIC_LIB_TARGETS\n"
 emit "\n"
 for SUBDIR in $SUBDIRS; do
 	emit "$SUBDIR.dir: $SUBDIR\n"
@@ -101,26 +119,39 @@ for TARGET in $TARGETS; do
 	# evaluate target variables
 	eval "EXTRA_DEPS=\${${TARGET}_EXTRA_DEPENDENCIES}"
 	eval "SOURCES=\${${TARGET}_SOURCES}"
+	eval "LDFLAGS=\${${TARGET}_LDFLAGS}"
+	eval "LIBS=\${${TARGET}_LIBS}"
+	eval "LIB_LOOKUP_DIRS=\${${TARGET}_LIB_LOOKUP_DIRS}"
 	OBJECTS="`src2obj $SOURCES`"
 	BUILD_SOURCES="$BUILD_SOURCES $SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
-	emit "$TARGET: $OBJECTS $EXTRA_DEPS\n"
-	emit "\t\$(CC) \$(LDFLAGS) -o $TARGET $OBJECTS\n"
-	emit "\n"
+	emit "$TARGET: $STATIC_LIBS $OBJECTS $EXTRA_DEPS\n"
+	emit "\t\$(CC) \$(LDFLAGS) $LDFLAGS"
+	for LIB_LOOKUP_DIR in $LIB_LOOKUP_DIRS; do
+		emit " -L$LIB_LOOKUP_DIR"
+	done
+	emit " -o$TARGET $OBJECTS"
+	for LIB in $LIBS; do
+		emit " -l$LIB"
+	done
+	emit "\n\n"
 done
 for STATIC_LIB in $STATIC_LIB_TARGETS; do
 	# evaluate library variables
-	eval "SOURCES=\${$STATIC_LIB}_SOURCES}"
+	eval "SOURCES=\${${STATIC_LIB}_SOURCES}"
 	OBJECTS="`src2obj $SOURCES`"
 	BUILD_SOURCES="$BUILD_SOURCES $SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	# TODO: emit target linking
+	emit "`staticlib_fname $STATIC_LIB`: $OBJECTS $EXTRA_DEPS\n"
+	emit "\t\$(AR) \$(ARFLAGS) -o lib$STATIC_LIB.a $OBJECTS\n"
+	emit "\n"
 done
 for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 	# evaluate library variables
-	eval "SOURCES=\${$DYNAMIC_LIB}_SOURCES}"
+	eval "SOURCES=\${${DYNAMIC_LIB}_SOURCES}"
 	OBJECTS="`src2obj $SOURCES`"
 	BUILD_SOURCES="$BUILD_SOURCES $SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
@@ -143,7 +174,7 @@ for TARGET in $TARGETS; do
 	emit "\trm -f $TARGET\n"
 done
 for STATIC_LIB in $STATIC_LIB_TARGETS; do
-	emit "\trm -f $STATIC_LIB\n"
+	emit "\trm -f `staticlib_fname $STATIC_LIB`\n"
 done
 for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 	emit "\trm -f $DYNAMIC_LIB\n"

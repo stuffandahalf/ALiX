@@ -1,0 +1,3 @@
+noinst_LIBRARIES = libstub.a
+libstub_a_SOURCES = entry.c
+
