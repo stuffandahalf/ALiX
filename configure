@@ -1,9 +1,29 @@
 #!/bin/sh
 
+#  Copyright (c) 2022 Gregory Norton <gregory.norton@me.com>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
+
+# This script reads a list of variables from a configuration file
+# and produces a posix compliant makefile
+
 # functions to simplify makefile generation
 emit() {
-	echo "$DIR$OUT_MAKEFILE" >&2
-	printf "$@" >> "$DIR$OUT_MAKEFILE"
+	printf "$@"  >> "$DIR$OUT_MAKEFILE"
 }
 
 src2obj() {
@@ -15,14 +35,11 @@ src2obj() {
 # Build Variables
 
 TARGET=i386
-export TARGET
 
 # Makefile configuration input file
 IN_MAKEFILE=make.conf
-export IN_MAKEFILE
 # Makefile output file
 OUT_MAKEFILE=makefile
-export OUT_MAKEFILE
 
 # Determine current directory
 DIR="$PWD/"
@@ -67,6 +84,9 @@ touch "$DIR$OUT_MAKEFILE"
 BUILD_SOURCES=
 BUILD_ARTIFACTS=
 
+
+
+
 # write output file
 emit ".POSIX:\n"
 emit "\n"
@@ -79,16 +99,13 @@ for SUBDIR in $SUBDIRS; do
 done
 for TARGET in $TARGETS; do
 	# evaluate target variables
+	eval "EXTRA_DEPS=\${${TARGET}_EXTRA_DEPENDENCIES}"
 	eval "SOURCES=\${${TARGET}_SOURCES}"
 	OBJECTS="`src2obj $SOURCES`"
-
-	echo "$TARGET" >&2
-	echo "$SOURCES" >&2
-	echo "$OBJECTS" >&2
 	BUILD_SOURCES="$BUILD_SOURCES $SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
-	emit "$TARGET: $OBJECTS\n"
+	emit "$TARGET: $OBJECTS $EXTRA_DEPS\n"
 	emit "\t\$(CC) \$(LDFLAGS) -o $TARGET $OBJECTS\n"
 	emit "\n"
 done
