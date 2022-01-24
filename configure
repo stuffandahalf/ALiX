@@ -47,6 +47,9 @@ ldargs() {
 }
 
 # TODO: Configure environment from commandline flags
+for DIR in `echo "$PATH" | sed -e "s/:/\n/g"`; do
+	echo Checking "$DIR"
+done
 
 # Build Variables
 
