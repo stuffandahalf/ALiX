@@ -66,8 +66,8 @@ test_CC() {
 	log 1 -n "Executable format test..."
 	printf "#include <stdio.h>\nint main(int argc,char **argv){return 0;}\n" > .filefmt.c
 	"$1" -o .filefmt .filefmt.c
-	EXPECTED_ELF_MAGIC="`printf \"\x7FELF\"`"
-	ACTUAL_ELF_MAGIC=`head -c 4 .filefmt | sed -e "s/\n//g"`
+	EXPECTED_ELF_MAGIC=`printf '\177ELF'`
+	ACTUAL_ELF_MAGIC=`head -c 4 .filefmt`
 	rm -f .filefmt .filefmt.c
 	if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
 		log 1 "FAILED"
