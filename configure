@@ -23,7 +23,7 @@
 
 # functions to simplify makefile generation
 usage() {
-	printf "usage: %s [-B build dir] [-A architecture] [-v+] [-h]\n" $1
+	printf "usage: %s [-A architecture] [-B build dir] [-v+] [-h]\n" $1
 }
 
 log() {
@@ -74,6 +74,12 @@ ldargs() {
 IN_MAKEFILE=make.conf
 OUT_MAKEFILE=makefile
 
+SUPPORTED_ARCHS="i386 amd64 ppc ppc64"
+i386_ALTNAMES="i386 i486 i586 i686 i86pc"
+amd64_ALTNAMES="amd64 x86_64"
+ppc_ALTNAMES="ppc powerpc"
+ppc64_ALTNAMES="ppc64 powerpc"
+
 if [ -z "$CONFIGURED" ]; then
 	TARGET_ARCH=i386
 	export TARGET_ARCH
@@ -84,22 +90,39 @@ if [ -z "$CONFIGURED" ]; then
 
 	while getopts 'A:B:vh' opt; do
 	    case $opt in
-	        (T) TARGET_ARCH=$OPTARG;;
+	        (A) TARGET_ARCH=$OPTARG;;
 	        (B) BUILD_DIR=$OPTARG;;
 	        (v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
 	        (h) usage "$0"; exit 1;;
 			(?) usage "$0" >&2; exit 1;;
 	    esac
 	done
+
+	# check that selected arch is legal and set preferred name
+	for ARCH in $SUPPORTED_ARCHS; do
+		eval "ALTNAMES=\$${ARCH}_ALTNAMES"
+		for ALTNAME in $ALTNAMES; do
+			if [ "$TARGET_ARCH" = "$ALTNAME" ]; then
+				TARGET_ARCH="$ARCH"
+			fi
+		done
+	done
+	log 0 "TARGETING $TARGET_ARCH"
+
 	CONFIGURED=1
 	export CONFIGURED
 fi
 shift `dc -e "$OPTIND 1 - p"`
 
 REQ_TOOLS="cc ld ar"
-CC_CANDIDATES="c99 cc clang gcc $TARGET-elf-none-gcc $TARGET-elf-alix-gcc"
-LD_CANDIDATES="ld bfd lld gold mold $TARGET-elf-none-bfd $TARGET-elf-alix-bfd"
-AR_CANDIDATES="ar llvm-ar $TARGET-elf-none-ar $TARGET-elf-alix-ar"
+CC_CANDIDATES="c99 cc clang gcc"
+LD_CANDIDATES="ld bfd lld ld.lld gold ld.gold mold ld.mold"
+AR_CANDIDATES="ar llvm-ar"
+for ALTNAME in `eval "echo \$${TARGET_ARCH}_ALTNAMES"`; do
+	CC_CANDIDATES="$CC_CANDIDATES $TARGET_ARCH-elf-gcc $TARGET_ARCH-elf-none-gcc $TARGET_ARCH-elf-alix-gcc"
+	LD_CANDIDATES="$LD_CANDIDATES $TARGET_ARCH-elf-ld $TARGET_ARCH-elf-none-ld $TARGET_ARCH-elf-alix-ld $TARGET_ARCH-elf-ld.bfd $TARGET_ARCH-elf-none-ld.bfd $TARGET_ARCH-elf-alix-ld.bfd"
+	AR_CANDIDATES="$AR_CANDIDATES $TARGET_ARCH-elf-ar $TARGET_ARCH-elf-none-ar $TARGET_ARCH-elf-alix-ar"
+done
 for TOOL in $REQ_TOOLS; do
 	TOOLVAR="`echo $TOOL | tr '[a-z]' '[A-Z]'`"
 	export TOOLVAR
