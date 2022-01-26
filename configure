@@ -22,8 +22,27 @@
 # and produces a posix compliant makefile
 
 # functions to simplify makefile generation
+log() {
+	if [ $VERBOSE -ge $1 ]; then
+		shift 1
+		echo "$@" >&2
+	fi
+}
+
 emit() {
 	printf "$@"  >> "$DIR$OUT_MAKEFILE"
+}
+
+test_CC() {
+	log 1 "testing $1"
+}
+
+test_LD() {
+	log 1 "testing $1"
+}
+
+test_AR() {
+	log 1 "testing $1"
 }
 
 src2obj() {
@@ -46,36 +65,86 @@ ldargs() {
 	printf "\n"
 }
 
-# TODO: Configure environment from commandline flags
-for DIR in `echo "$PATH" | sed -e "s/:/\n/g"`; do
-	echo Checking "$DIR"
-done
-
 # Build Variables
+IN_MAKEFILE=make.conf
+OUT_MAKEFILE=makefile
 
-TARGET=i386
+if [ -z "$CONFIGURED" ]; then
+	TARGET=i386
+	export TARGET
+	VERBOSE=0
+	export VERBOSE
+	BUILD_PREFIX=""
+	export BUILD_PREFIX
+
+	while getopts 'T:B:vh' opt; do
+	    case $opt in
+	        (T) TARGET=$OPTARG;;
+	        (B) BUILD_DIR=$OPTARG;;
+	        (v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
+	        (h) echo "print help message";;
+	    esac
+	done
+	CONFIGURED=1
+	export CONFIGURED
+fi
+shift `dc -e "$OPTIND 1 - p"`
 
 # TODO: Lookup tools
+REQ_TOOLS="cc ld ar"
+CC_CANDIDATES="c99 cc clang gcc $TARGET-elf-none-gcc $TARGET-elf-alix-gcc"
+LD_CANDIDATES="ld bfd lld gold mold $TARGET-elf-none-bfd $TARGET-elf-alix-bfd"
+AR_CANDIDATES="ar llvm-ar $TARGET-elf-none-ar $TARGET-elf-alix-ar"
+for TOOL in $REQ_TOOLS; do
+	TOOLVAR="`echo $TOOL | tr '[a-z]' '[A-Z]'`"
+	export TOOLVAR
+	echo "$TOOLVAR"
+	TOOLVAL="$(eval "echo \${$TOOLVAR}")"
+	if [ ! -z "$TOOLVAL" ] && "test_$TOOLVAR" "$TOOLVAL"; then
+		continue
+	fi
 
-# Makefile configuration input file
-IN_MAKEFILE=make.conf
-# Makefile output file
-OUT_MAKEFILE=makefile
+	eval "CANDIDATES=\"$(echo \${${TOOLVAR}_CANDIDATES})\""
+	for DIR in `echo "$PATH" | sed -e "s/:/\n/g"`; do
+		FOUND=0
+
+        log 2 "Checking $DIR for $TOOLVAR candidates"
+        for CANDIDATE in $CANDIDATES; do
+            if [ -x $DIR/$CANDIDATE ] && eval "test_${TOOLVAR} '$DIR/$CANDIDATE'"; then
+				TOOLVAL="$DIR/$CANDIDATE"
+                eval "${TOOLVAR}=\"${TOOLVAL}\""
+				export $TOOLVAR
+				log 0 "Found $TOOLVAR candidate at \"$TOOLVAL\""
+				FOUND=1
+				break
+            fi
+        done
+		if [ "$FOUND" -gt 0 ]; then
+			break
+		fi
+    done
+
+	if [ -z "$TOOLVAL" ]; then
+		log 0 "Failed to find valid candidate for $TOOLVAR"
+		exit 1
+	fi
+done
 
 # Determine current directory
 DIR="$PWD/"
 if [ $# -gt 0 ]; then
 	DIR="$1"
 fi
-
 # Lookup subdirectories
 SUBDIRS=`ls -d "$DIR"*/ 2> /dev/null`
+log 3 "Found the following subdirectories"
+log 3 "$SUBDIRS"
 # Recurse through subdirectories and configure them
 if [ $? -eq 0 ]; then
 	for SUBDIR in $SUBDIRS; do
-		echo "ENTERING $SUBDIR"
+		log 2 "ENTERING $SUBDIR"
 		$0 "$SUBDIR"
-		echo "LEAVING $SUBDIR"
+		log 2 "LEAVING $SUBDIR"
 	done
 fi
 
@@ -95,7 +164,7 @@ for SUBDIR in $SUBDIRS; do
 	SUBDIR_TARGETS="$SUBDIR_TARGETS $SUBDIR.dir"
 done
 
-echo "CREATING $DIR$OUT_MAKEFILE"
+log 0 "CREATING $DIR$OUT_MAKEFILE"
 
 # create output file
 if [ -e "$DIR$OUT_MAKEFILE" ]; then
