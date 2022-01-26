@@ -77,7 +77,7 @@ test_CC() {
 
 	# Test C standard
 	log 1 -n "Standard C test..."
-	printf "int main(int argc, char **argv){\n#ifdef __STDC__\nreturn 0;\n#else\nreturn 1;\n#endif\n}" > .std.c
+	printf "int main(int argc, char **argv){\n#ifdef __STDC__\nreturn 0;\n#else\nreturn 1;\n#endif\n}\n" > .std.c
 	"$1" -o .std .std.c
 	./.std
 	CC_STDC=$?
