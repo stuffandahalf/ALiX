@@ -40,6 +40,55 @@ emit() {
 # TODO: Implement toolchain tests
 test_CC() {
 	log 2 "TESTING $1"
+
+	# Check brand of C compiler
+	log 2 -n "C compiler brand..."
+	if "$1" -v 2>&1 | grep -i "clang" > /dev/null; then
+		CC_BRAND=clang
+	elif "$1" -v 2>&1 | grep -i "gcc" > /dev/null; then
+		CC_BRAND=gcc
+	fi
+	log 2 "$CC_BRAND"
+
+	# check default target of compiler
+	log 2 -n "Default C compiler target..."
+	CC_TARGET=`"$1" -v 2>&1 | grep -i "target" | cut -d' ' -f2 | cut -d'-' -f1`
+	if [ $? -ne 0 ]; then
+		log 2 "FAILED"
+		return 1
+	fi
+	log 2 "$CC_TARGET"
+
+	# verify if compiler target matches requested target
+	# if not, attempt to set CFLAGS to change target
+
+	# Test for ELF output fomat
+	log 2 -n "Executable format test..."
+	printf "#include <stdio.h>\nint main(int argc,char **argv){return 0;}\n" > .filefmt.c
+	"$1" -o .filefmt .filefmt.c
+	EXPECTED_ELF_MAGIC="`printf \"\x7FELF\"`"
+	ACTUAL_ELF_MAGIC=`head -c 4 .filefmt | sed -e "s/\n//g"`
+	rm -f .filefmt .filefmt.c
+	if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
+		log 2 "FAILED"
+		return 1
+	fi
+	log 2 "OK"
+
+	# Test C standard
+	log 2 -n "Standard C test..."
+	printf "int main(int argc, char **argv){\n#ifdef __STDC__\nreturn 0;\n#else\nreturn 1;\n#endif\n" > .std.c
+	"$1" -o .std .std.c
+	./.std
+	CC_STDC=$?
+	rm -f .std .std.c
+	if [ "$CC_STDC" -ne 0 ]; then
+		log 2 "FAILED"
+		return 1
+	fi
+	log 2 "OK"
+
+	log 2 "PASSED $1"
 }
 
 test_LD() {
@@ -85,7 +134,7 @@ i386_COMPATIBLE_TOOLCHAINS="amd64"
 ppc_COMPATIBLE_TOOLCHAINS="ppc64"
 
 if [ -z "$CONFIGURED" ]; then
-	TARGET_ARCH=i386
+	TARGET_ARCH=`uname -m`
 	export TARGET_ARCH
 	VERBOSE=0
 	export VERBOSE
@@ -139,7 +188,8 @@ for TOOL in $REQ_TOOLS; do
 	TOOLVAR="`echo $TOOL | tr '[a-z]' '[A-Z]'`"
 	export TOOLVAR
 	TOOLVAL="$(eval "echo \${$TOOLVAR}")"
-	if [ ! -z "$TOOLVAL" ] && "test_$TOOLVAR" "$TOOLVAL"; then
+#	if [ ! -z "$TOOLVAL" ] && "test_$TOOLVAR" "$TOOLVAL"; then
+	if [ ! -z "$TOOLVAL" ]; then
 		continue
 	fi
 
