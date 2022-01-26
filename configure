@@ -22,6 +22,10 @@
 # and produces a posix compliant makefile
 
 # functions to simplify makefile generation
+usage() {
+	printf "usage: %s [-B build dir] [-A architecture] [-v+] [-h]\n" $1
+}
+
 log() {
 	if [ $VERBOSE -ge $1 ]; then
 		shift 1
@@ -33,16 +37,17 @@ emit() {
 	printf "$@"  >> "$DIR$OUT_MAKEFILE"
 }
 
+# TODO: Implement toolchain tests
 test_CC() {
-	log 1 "testing $1"
+	log 2 "TESTING $1"
 }
 
 test_LD() {
-	log 1 "testing $1"
+	log 2 "TESTING $1"
 }
 
 test_AR() {
-	log 1 "testing $1"
+	log 2 "TESTING $1"
 }
 
 src2obj() {
@@ -70,19 +75,20 @@ IN_MAKEFILE=make.conf
 OUT_MAKEFILE=makefile
 
 if [ -z "$CONFIGURED" ]; then
-	TARGET=i386
-	export TARGET
+	TARGET_ARCH=i386
+	export TARGET_ARCH
 	VERBOSE=0
 	export VERBOSE
 	BUILD_PREFIX=""
 	export BUILD_PREFIX
 
-	while getopts 'T:B:vh' opt; do
+	while getopts 'A:B:vh' opt; do
 	    case $opt in
-	        (T) TARGET=$OPTARG;;
+	        (T) TARGET_ARCH=$OPTARG;;
 	        (B) BUILD_DIR=$OPTARG;;
 	        (v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
-	        (h) echo "print help message";;
+	        (h) usage "$0"; exit 1;;
+			(?) usage "$0" >&2; exit 1;;
 	    esac
 	done
 	CONFIGURED=1
@@ -90,7 +96,6 @@ if [ -z "$CONFIGURED" ]; then
 fi
 shift `dc -e "$OPTIND 1 - p"`
 
-# TODO: Lookup tools
 REQ_TOOLS="cc ld ar"
 CC_CANDIDATES="c99 cc clang gcc $TARGET-elf-none-gcc $TARGET-elf-alix-gcc"
 LD_CANDIDATES="ld bfd lld gold mold $TARGET-elf-none-bfd $TARGET-elf-alix-bfd"
@@ -98,7 +103,6 @@ AR_CANDIDATES="ar llvm-ar $TARGET-elf-none-ar $TARGET-elf-alix-ar"
 for TOOL in $REQ_TOOLS; do
 	TOOLVAR="`echo $TOOL | tr '[a-z]' '[A-Z]'`"
 	export TOOLVAR
-	echo "$TOOLVAR"
 	TOOLVAL="$(eval "echo \${$TOOLVAR}")"
 	if [ ! -z "$TOOLVAL" ] && "test_$TOOLVAR" "$TOOLVAL"; then
 		continue
@@ -137,14 +141,12 @@ if [ $# -gt 0 ]; then
 fi
 # Lookup subdirectories
 SUBDIRS=`ls -d "$DIR"*/ 2> /dev/null`
-log 3 "Found the following subdirectories"
-log 3 "$SUBDIRS"
 # Recurse through subdirectories and configure them
 if [ $? -eq 0 ]; then
 	for SUBDIR in $SUBDIRS; do
-		log 2 "ENTERING $SUBDIR"
+		log 1 "ENTERING $SUBDIR"
 		$0 "$SUBDIR"
-		log 2 "LEAVING $SUBDIR"
+		log 1 "LEAVING $SUBDIR"
 	done
 fi
 
