@@ -47,6 +47,8 @@ test_CC() {
 		CC_BRAND=clang
 	elif "$1" -v 2>&1 | grep -i "gcc" > /dev/null; then
 		CC_BRAND=gcc
+	elif [ "$1" = "c99" ]; then
+		CC_BRAND=posix
 	fi
 	log 1 "$CC_BRAND"
 
