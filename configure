@@ -42,7 +42,7 @@ test_CC() {
 	log 1 "TESTING $1"
 
 	# Check brand of C compiler
-	log 1 -n "C compiler brand..."
+	log 1 "C compiler brand..."
 	if "$1" -v 2>&1 | grep -i "clang" > /dev/null; then
 		CC_BRAND=clang
 	elif "$1" -v 2>&1 | grep -i "gcc" > /dev/null; then
@@ -53,8 +53,8 @@ test_CC() {
 	log 1 "$CC_BRAND"
 
 	# check default target of compiler
-	log 1 -n "Default C compiler target..."
-	CC_TARGET=`"$1" -v 2>&1 | grep -i "target" | cut -d' ' -f2 | cut -d'-' -f1`
+	log 1 "Default C compiler target..."
+	CC_TARGET=`"$1" -v 2>&1 | grep -i "^target" | cut -d' ' -f2 | cut -d'-' -f1`
 	if [ $? -ne 0 ]; then
 		log 1 "FAILED"
 		return 1
@@ -65,11 +65,11 @@ test_CC() {
 	# if not, attempt to set CFLAGS to change target
 
 	# Test for ELF output fomat
-	log 1 -n "Executable format test..."
-	printf "#include <stdio.h>\nint main(int argc,char **argv){return 0;}\n" > .filefmt.c
-	"$1" -o .filefmt .filefmt.c
+	log 1 "Executable format test..."
+	printf "int main(int argc,char **argv){return 0;}\n" > .filefmt.c
+	"$1" -c .filefmt.c
 	EXPECTED_ELF_MAGIC=`printf '\177ELF'`
-	ACTUAL_ELF_MAGIC=`head -c 4 .filefmt`
+	ACTUAL_ELF_MAGIC=`head -c 4 .filefmt.o`
 	rm -f .filefmt .filefmt.c
 	if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
 		log 1 "FAILED"
@@ -78,17 +78,15 @@ test_CC() {
 	log 1 "OK"
 
 	# Test C standard
-	log 1 -n "Standard C test..."
-	printf "int main(int argc, char **argv){\n#ifdef __STDC__\nreturn 0;\n#else\nreturn 1;\n#endif\n}\n" > .std.c
-	"$1" -o .std .std.c
-	./.std
-	CC_STDC=$?
-	rm -f .std .std.c
-	if [ "$CC_STDC" -ne 0 ]; then
+	log 1 "Standard C test..."
+	printf "#if !defined(__STDC__)\n0\n#elif defined(__STDC_VERSION__)\n__STDC_VERSION__\n#else\n1\n#endif\n" > .std.c
+	CC_STD=`"$1" -E .std.c | grep '^\d' | sed -e 's/L$//'`
+	rm -f .std.c
+	if [ "$CC_STD" -lt "$REQUIRED_C_STANDARD" ]; then
 		log 1 "FAILED"
 		return 1
 	fi
-	log 1 "OK"
+	log 1 "OK ($CC_STD)"
 
 	log 1 "PASSED $1"
 }
@@ -124,6 +122,8 @@ ldargs() {
 # Build Variables
 IN_MAKEFILE=make.conf
 OUT_MAKEFILE=makefile
+REQUIRED_C_STANDARD=1
+export REQUIRED_C_STANDARD
 
 SUPPORTED_ARCHS="i386 amd64 ppc ppc64"
 i386_ALTNAMES="i386 i486 i586 i686 i86pc"
