@@ -80,7 +80,7 @@ test_CC() {
 	# Test C standard
 	log 1 "Standard C test..."
 	printf "#if !defined(__STDC__)\n0\n#elif defined(__STDC_VERSION__)\n__STDC_VERSION__\n#else\n1\n#endif\n" > .std.c
-	CC_STD=`"$1" -E .std.c | grep '^\d' | sed -e 's/L$//'`
+	CC_STD=`"$1" -E .std.c | grep '^[0-9]' | sed -e 's/L$//'`
 	rm -f .std.c
 	if [ "$CC_STD" -lt "$REQUIRED_C_STANDARD" ]; then
 		log 1 "FAILED"
