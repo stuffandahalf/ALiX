@@ -67,7 +67,7 @@ test_CC() {
 	# Test for ELF output fomat
 	log 1 "Executable format test..."
 	printf "int main(int argc,char **argv){return 0;}\n" > .filefmt.c
-	"$1" -c .filefmt.c
+	"$1" $CFLAGS -c .filefmt.c
 	EXPECTED_ELF_MAGIC=`printf '\177ELF'`
 	ACTUAL_ELF_MAGIC=`head -c 4 .filefmt.o`
 	rm -f .filefmt.o .filefmt.c
@@ -77,10 +77,32 @@ test_CC() {
 	fi
 	log 1 "OK"
 
+	# check if compiler automatically imports headers
+	log 1 "Checking if C compiler provides stdlib headers..."
+	printf "#include <stdio.h>\n" > .stdinc.c
+	"$1" $CFLAGS -c .stdinc.c 2>/dev/null
+	TMP=$?
+	rm -f .stdinc.c .stdinc.o
+	if [ "$TMP" -ne 0 ]; then
+		case "$CC_BRAND" in
+			gcc)
+				CFLAGS="$CFLAGS -nostdinc"
+				;;
+			clang)
+				CFLAGS="$CFLAGS -nostdinc"
+				;;
+			*)
+				log 1 "FAILED"
+				return 1
+				;;
+		esac
+	fi
+	log 1 "OK"
+
 	# Test C standard
 	log 1 "Standard C test..."
 	printf "#if !defined(__STDC__)\n0\n#elif defined(__STDC_VERSION__)\n__STDC_VERSION__\n#else\n1\n#endif\n" > .std.c
-	CC_STD=`"$1" -E .std.c | grep '^[0-9]' | sed -e 's/L$//'`
+	CC_STD=`"$1" $CFLAGS -E .std.c | grep '^[0-9]' | sed -e 's/L$//'`
 	rm -f .std.c
 	if [ "$CC_STD" -lt "$REQUIRED_C_STANDARD" ]; then
 		log 1 "FAILED"
@@ -89,6 +111,8 @@ test_CC() {
 	log 1 "OK ($CC_STD)"
 
 	log 1 "PASSED $1"
+
+	echo "CFLAGS"
 }
 
 test_LD() {
