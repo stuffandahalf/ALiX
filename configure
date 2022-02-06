@@ -37,90 +37,8 @@ emit() {
 	printf "$@"  >> "$DIR$OUT_MAKEFILE"
 }
 
-# TODO: Implement toolchain tests
-test_CC() {
-	log 1 "TESTING $1"
-
-	# Check brand of C compiler
-	log 1 "C compiler brand..."
-	if "$1" -v 2>&1 | grep -i "clang" > /dev/null; then
-		CC_BRAND=clang
-	elif "$1" -v 2>&1 | grep -i "gcc" > /dev/null; then
-		CC_BRAND=gcc
-	elif [ "$1" = "c99" ]; then
-		CC_BRAND=posix
-	fi
-	log 1 "$CC_BRAND"
-
-	# check default target of compiler
-	log 1 "Default C compiler target..."
-	CC_TARGET=`"$1" -v 2>&1 | grep -i "^target" | cut -d' ' -f2 | cut -d'-' -f1`
-	if [ $? -ne 0 ]; then
-		log 1 "FAILED"
-		return 1
-	fi
-	log 1 "$CC_TARGET"
-
-	# verify if compiler target matches requested target
-	# if not, attempt to set CFLAGS to change target
-
-	# Test for ELF output fomat
-	log 1 "Executable format test..."
-	printf "int main(int argc,char **argv){return 0;}\n" > .filefmt.c
-	"$1" $CFLAGS -c .filefmt.c
-	EXPECTED_ELF_MAGIC=`printf '\177ELF'`
-	ACTUAL_ELF_MAGIC=`head -c 4 .filefmt.o`
-	rm -f .filefmt.o .filefmt.c
-	if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
-		log 1 "FAILED"
-		return 1
-	fi
-	log 1 "OK"
-
-	# check if compiler automatically imports headers
-	log 1 "Checking if C compiler provides stdlib headers..."
-	printf "#include <stdio.h>\n" > .stdinc.c
-	"$1" $CFLAGS -c .stdinc.c 2>/dev/null
-	TMP=$?
-	rm -f .stdinc.c .stdinc.o
-	if [ "$TMP" -ne 0 ]; then
-		case "$CC_BRAND" in
-			gcc)
-				CFLAGS="$CFLAGS -nostdinc"
-				;;
-			clang)
-				CFLAGS="$CFLAGS -nostdinc"
-				;;
-			*)
-				log 1 "FAILED"
-				return 1
-				;;
-		esac
-	fi
-	log 1 "OK"
-
-	# Test C standard
-	log 1 "Standard C test..."
-	printf "#if !defined(__STDC__)\n0\n#elif defined(__STDC_VERSION__)\n__STDC_VERSION__\n#else\n1\n#endif\n" > .std.c
-	CC_STD=`"$1" $CFLAGS -E .std.c | grep '^[0-9]' | sed -e 's/L$//'`
-	rm -f .std.c
-	if [ "$CC_STD" -lt "$REQUIRED_C_STANDARD" ]; then
-		log 1 "FAILED"
-		return 1
-	fi
-	log 1 "OK ($CC_STD)"
-
-	log 1 "PASSED $1"
-
-	echo "CFLAGS"
-}
-
-test_LD() {
-	log 1 "TESTING $1"
-}
-
-test_AR() {
-	log 1 "TESTING $1"
+path_dirs() {
+	echo "$PATH" | sed -e "s/:/\n/g"
 }
 
 src2obj() {
@@ -193,6 +111,7 @@ if [ -z "$CONFIGURED" ]; then
 fi
 shift `dc -e "$OPTIND 1 - p"`
 
+# set up tool paths and names to search for
 REQ_TOOLS="cc ld ar"
 CC_CANDIDATES="c99 cc clang gcc"
 LD_CANDIDATES="ld bfd lld ld.lld gold ld.gold mold ld.mold"
@@ -210,40 +129,185 @@ for TC_ARCH in $TOOLCHAIN_ARCHS; do
 	LD_CANDIDATES="$LD_CANDIDATES $TC_ARCH-elf-ld $TC_ARCH-elf-none-ld $TC_ARCH-elf-alix-ld $TC_ARCH-elf-ld.bfd $TC_ARCH-elf-none-ld.bfd $TC_ARCH-elf-alix-ld.bfd"
 	AR_CANDIDATES="$AR_CANDIDATES $TC_ARCH-elf-ar $TC_ARCH-elf-none-ar $TC_ARCH-elf-alix-ar"
 done
-for TOOL in $REQ_TOOLS; do
-	TOOLVAR="`echo $TOOL | tr '[a-z]' '[A-Z]'`"
-	export TOOLVAR
-	TOOLVAL="$(eval "echo \${$TOOLVAR}")"
-#	if [ ! -z "$TOOLVAL" ] && "test_$TOOLVAR" "$TOOLVAL"; then
-	if [ ! -z "$TOOLVAL" ]; then
-		continue
-	fi
 
-	eval "CANDIDATES=\"$(echo \${${TOOLVAR}_CANDIDATES})\""
-	for DIR in `echo "$PATH" | sed -e "s/:/\n/g"`; do
-		FOUND=0
-
-        log 2 "Checking $DIR for $TOOLVAR candidates"
-        for CANDIDATE in $CANDIDATES; do
-            if [ -x $DIR/$CANDIDATE ] && eval "test_${TOOLVAR} '$DIR/$CANDIDATE'"; then
-				TOOLVAL="$DIR/$CANDIDATE"
-                eval "${TOOLVAR}=\"${TOOLVAL}\""
-				export $TOOLVAR
-				log 0 "Found $TOOLVAR candidate at \"$TOOLVAL\""
-				FOUND=1
-				break
-            fi
-        done
-		if [ "$FOUND" -gt 0 ]; then
+# determine CC
+if [ -z "$CC" ]; then
+	FOUND=""
+	for DIR in `path_dirs`; do
+		if [ ! -z "$FOUND" ]; then
 			break
 		fi
-    done
 
-	if [ -z "$TOOLVAL" ]; then
-		log 0 "Failed to find valid candidate for $TOOLVAR"
+		log 2 "CHECKING \"$DIR\" for CC candidates"
+		for CANDIDATE in $CC_CANDIDATES; do
+			CC="$DIR/$CANDIDATE"
+			CFLAGS_TEST="$CFLAGS"
+			if [ ! -x "$CC" ]; then
+				continue
+			fi
+			log 1 "TESTING \"$CC\""
+
+			# Check brand of C compiler
+			log 1 "C compiler brand..."
+			if "$CC" $CFLAGS_TEST -v 2>&1 | grep -i "clang" > /dev/null; then
+				CC_BRAND=clang
+			elif "$CC" $CFLAGS_TEST -v 2>&1 | grep -i "gcc" > /dev/null; then
+				CC_BRAND=gcc
+			elif [ "$CC" = "c99" ]; then
+				CC_BRAND=posix
+			fi
+			log 1 "$CC_BRAND"
+
+			# check default target of compiler
+			log 1 "Default C compiler target..."
+			CC_TARGET=`"$CC" $CFLAGS_TEST -v 2>&1 | grep -i "^target" | cut -d' ' -f2 | cut -d'-' -f1`
+			if [ $? -ne 0 ]; then
+				log 1 "FAILED"
+				break
+			fi
+			log 1 "$CC_TARGET"
+
+			# verify if compiler target matches requested target
+			# if not, attempt to set CFLAGS to change target
+
+			# Test for ELF output fomat
+			log 1 "Executable format test..."
+			printf "int main(int argc,char **argv){return 0;}\n" > .filefmt.c
+			"$CC" $CFLAGS_TEST -c .filefmt.c
+			EXPECTED_ELF_MAGIC=`printf '\177ELF'`
+			ACTUAL_ELF_MAGIC=`head -c 4 .filefmt.o`
+			rm -f .filefmt.o .filefmt.c
+			if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
+				log 1 "FAILED"
+				break
+			fi
+			log 1 "OK"
+
+			# check if compiler automatically imports headers
+			log 1 "Checking if C compiler provides stdlib headers..."
+			printf "#include <stdio.h>\n" > .stdinc.c
+			"$CC" $CFLAGS_TEST -c .stdinc.c 2>/dev/null
+			TMP=$?
+			rm -f .stdinc.c .stdinc.o
+			if [ "$TMP" -ne 0 ]; then
+				case "$CC_BRAND" in
+					gcc)
+						CFLAGS="$CFLAGS -nostdinc"
+						;;
+					clang)
+						CFLAGS="$CFLAGS -nostdinc"
+						;;
+					*)
+						log 1 "FAILED"
+						break
+						;;
+				esac
+			fi
+			log 1 "OK"
+
+			# Test C standard
+			log 1 "Standard C test..."
+			printf "#if !defined(__STDC__)\n0\n#elif defined(__STDC_VERSION__)\n__STDC_VERSION__\n#else\n1\n#endif\n" > .std.c
+			CC_STD=`"$CC" $CFLAGS_TEST -E .std.c | grep '^[0-9]' | sed -e 's/L$//'`
+			rm -f .std.c
+			if [ "$CC_STD" -lt "$REQUIRED_C_STANDARD" ]; then
+				log 1 "FAILED"
+				break
+			fi
+			log 1 "OK ($CC_STD)"
+
+			log 1 "PASSED $CC"
+
+			CFLAGS="$CFLAGS_TEST"
+			FOUND="yes"
+			break
+		done
+	done
+
+	if [ -z "$FOUND" ]; then
+		log 0 "Failed to locate compatible CC"
 		exit 1
 	fi
-done
+
+	export CC
+	export CFLAGS
+fi
+
+# determine LD
+if [ -z "$LD" ]; then
+	FOUND=""
+
+	for DIR in `path_dirs`; do
+		if [ ! -z "$FOUND" ]; then
+			break
+		fi
+
+		log 2 "CHECKING \"$DIR\" for LD candidates"
+
+		for CANDIDATE in $LD_CANDIDATES; do
+			LD="$DIR/$CANDIDATE"
+			LDFLAGS_TEST="$LDFLAGS"
+
+			if [ ! -x $LD ]; then
+				continue
+			fi
+
+			log 1 "TESTING \"$LD\""
+
+			# run tests
+
+			LDFLAGS="$LDFLAGS_TEST"
+			FOUND="yes"
+			break
+		done
+	done
+
+	if [ -z "$FOUND" ]; then
+		log 0 "Failed to locate compatible LD"
+		exit 1
+	fi
+
+	export LD
+	export LDFLAGS
+fi
+
+# determine AR
+if [ -z "$AR" ]; then
+	FOUND=""
+
+	for DIR in `path_dirs`; do
+		if [ ! -z "$FOUND" ]; then
+			break
+		fi
+
+		log 2 "CHECKING \"$DIR\" for AR candidates"
+
+		for CANDIDATE in $AR_CANDIDATES; do
+			AR="$DIR/$CANDIDATE"
+			ARFLAGS_TEST="$ARFLAGS -rv"
+
+			if [ ! -x "$AR" ]; then
+				continue
+			fi
+
+			log 1 "TESTING \"$AR\""
+
+			# run tests
+
+			ARFLAGS="$ARFLAGS_TEST"
+			FOUND="yes"
+			break
+		done
+	done
+
+	if [ -z "$FOUND" ]; then
+		log 0 "Failed to locate compatible AR"
+		exit 1
+	fi
+
+	export AR
+	export ARFLAGS
+fi
 
 # Determine current directory
 DIR="$PWD/"
@@ -303,49 +367,49 @@ done
 for TARGET in $TARGETS; do
 	# evaluate target variables
 	eval "EXTRA_DEPS=\${${TARGET}_EXTRA_DEPENDENCIES}"
-	eval "SOURCES=\${${TARGET}_SOURCES}"
-	eval "LDFLAGS=\${${TARGET}_LDFLAGS}"
-	eval "LIBS=\${${TARGET}_LIBS}"
+	eval "TARGET_SOURCES=\${${TARGET}_SOURCES}"
+	eval "TARGET_LDFLAGS=\${${TARGET}_LDFLAGS}"
+	eval "TARGET_LIBS=\${${TARGET}_LIBS}"
 	eval "LIB_LOOKUP_DIRS=\${${TARGET}_LIB_LOOKUP_DIRS}"
-	OBJECTS="`src2obj $SOURCES`"
-	BUILD_SOURCES="$BUILD_SOURCES $SOURCES"
+	OBJECTS="`src2obj $TARGET_SOURCES`"
+	BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	emit "$TARGET: $STATIC_LIBS $OBJECTS $EXTRA_DEPS\n"
-	emit "\t\"${CC}\" \$(LDFLAGS) $LDFLAGS"
+	emit "\t\"${LD}\" $LDFLAGS $TARGET_LDFLAGS"
 	for LIB_LOOKUP_DIR in $LIB_LOOKUP_DIRS; do
 		emit " -L$LIB_LOOKUP_DIR"
 	done
 	emit " -o$TARGET $OBJECTS"
-	for LIB in $LIBS; do
+	for LIB in $TARGET_LIBS; do
 		emit " -l$LIB"
 	done
 	emit "\n\n"
 done
 for STATIC_LIB in $STATIC_LIB_TARGETS; do
 	# evaluate library variables
-	eval "SOURCES=\${${STATIC_LIB}_SOURCES}"
-	OBJECTS="`src2obj $SOURCES`"
-	BUILD_SOURCES="$BUILD_SOURCES $SOURCES"
+	eval "TARGET_SOURCES=\${${STATIC_LIB}_SOURCES}"
+	OBJECTS="`src2obj $TARGET_SOURCES`"
+	BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	# TODO: emit target linking
 	emit "`staticlib_fname $STATIC_LIB`: $OBJECTS $EXTRA_DEPS\n"
-	emit "\t\${AR} \$(ARFLAGS) lib$STATIC_LIB.a $OBJECTS\n"
+	emit "\t\"${AR}\" ${ARFLAGS} lib$STATIC_LIB.a $OBJECTS\n"
 	emit "\n"
 done
 for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 	# evaluate library variables
-	eval "SOURCES=\${${DYNAMIC_LIB}_SOURCES}"
-	OBJECTS="`src2obj $SOURCES`"
-	BUILD_SOURCES="$BUILD_SOURCES $SOURCES"
+	eval "TARGET_SOURCES=\${${DYNAMIC_LIB}_SOURCES}"
+	OBJECTS="`src2obj $TARGET_SOURCES`"
+	BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	# TODO: emit target linking
 done
 for SOURCE in $BUILD_SOURCES; do
 	emit "`src2obj $SOURCE`: $SOURCE\n"
-	emit "\t\"${CC}\" \$(CFLAGS) -c -o `src2obj $SOURCE` $SOURCE\n"
+	emit "\t\"${CC}\" ${CFLAGS} -c -o `src2obj $SOURCE` $SOURCE\n"
 	emit "\n"
 done
 emit "clean:\n"
