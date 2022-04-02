@@ -112,10 +112,9 @@ fi
 shift `dc -e "$OPTIND 1 - p"`
 
 # set up tool paths and names to search for
-REQ_TOOLS="cc ld ar"
 CC_CANDIDATES="c99 cc clang gcc"
 LD_CANDIDATES="ld bfd lld ld.lld gold ld.gold mold ld.mold"
-AR_CANDIDATES="ar llvm-ar"
+AR_CANDIDATES="ar llvm-ar gcc-ar"
 eval "TOOLCHAIN_ARCHS=\"\$${TARGET_ARCH}_ALTNAMES\""
 eval "COMPATIBLE_TOOLCHAINS=\"\$${TARGET_ARCH}_COMPATIBLE_TOOLCHAINS\""
 for TC_COMPAT in $COMPATIBLE_TOOLCHAINS; do
@@ -126,8 +125,8 @@ for TC_COMPAT in $COMPATIBLE_TOOLCHAINS; do
 done
 for TC_ARCH in $TOOLCHAIN_ARCHS; do
 	CC_CANDIDATES="$CC_CANDIDATES $TC_ARCH-elf-gcc $TC_ARCH-elf-none-gcc $TC_ARCH-elf-alix-gcc"
-	LD_CANDIDATES="$LD_CANDIDATES $TC_ARCH-elf-ld $TC_ARCH-elf-none-ld $TC_ARCH-elf-alix-ld $TC_ARCH-elf-ld.bfd $TC_ARCH-elf-none-ld.bfd $TC_ARCH-elf-alix-ld.bfd"
-	AR_CANDIDATES="$AR_CANDIDATES $TC_ARCH-elf-ar $TC_ARCH-elf-none-ar $TC_ARCH-elf-alix-ar"
+#	LD_CANDIDATES="$LD_CANDIDATES $TC_ARCH-elf-ld $TC_ARCH-elf-none-ld $TC_ARCH-elf-alix-ld $TC_ARCH-elf-ld.bfd $TC_ARCH-elf-none-ld.bfd $TC_ARCH-elf-alix-ld.bfd"
+#	AR_CANDIDATES="$AR_CANDIDATES $TC_ARCH-elf-ar $TC_ARCH-elf-none-ar $TC_ARCH-elf-alix-ar"
 done
 
 # determine CC
@@ -376,7 +375,7 @@ for TARGET in $TARGETS; do
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	emit "$TARGET: $STATIC_LIBS $OBJECTS $EXTRA_DEPS\n"
-	emit "\t\"${LD}\" $LDFLAGS $TARGET_LDFLAGS"
+	emit "\t\"${CC}\" $LDFLAGS $TARGET_LDFLAGS"
 	for LIB_LOOKUP_DIR in $LIB_LOOKUP_DIRS; do
 		emit " -L$LIB_LOOKUP_DIR"
 	done
