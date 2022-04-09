@@ -335,7 +335,13 @@ set -e
 
 # look for makefile configuration file
 
-if [ ! -f "$DIR/$IN_MAKEFILE" ]; then
+if [ -f "$DIR/$OUT_MAKEFILE" ]; then
+	if [ ! -f "$DIR/$IN_MAKEFILE" ]; then
+		exit 0
+	elif [ "$DIR/$IN_MAKEFILE" -ot "$DIR/$OUT_MAKEFILE" ]; then
+		exit 0
+	fi
+elif [ ! -f "$DIR/$IN_MAKEFILE" ]; then
 	exit 1
 fi
 
