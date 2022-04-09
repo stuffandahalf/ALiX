@@ -1,0 +1,3 @@
+noinst_LIBRARIES = libfs.a
+libfs_a_SOURCES = v7x86.c
+

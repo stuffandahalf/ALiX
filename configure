@@ -1,0 +1,431 @@
+#!/bin/sh
+
+#  Copyright (c) 2022 Gregory Norton <gregory.norton@me.com>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
+
+# This script reads a list of variables from a configuration file
+# and produces a posix compliant makefile
+
+# functions to simplify makefile generation
+usage() {
+	printf "usage: %s [-A architecture] [-B build dir] [-v+] [-h]\n" $1
+}
+
+log() {
+	if [ $VERBOSE -ge $1 ]; then
+		shift 1
+		echo "$@" >&2
+	fi
+}
+
+emit() {
+	printf "$@"  >> "$DIR$OUT_MAKEFILE"
+}
+
+path_dirs() {
+	echo "$PATH" | sed -e "s/:/\n/g"
+}
+
+src2obj() {
+	for SRC in $@; do
+		printf "$SRC" | sed -e "s/\..*$/\.o /"
+	done
+}
+
+staticlib_fname() {
+	for LIB in $@; do
+		printf " lib$LIB.a"
+	done
+}
+
+ldargs() {
+	for LIB in $@; do
+		printf "-"
+		printf "l $LIB "
+	done
+	printf "\n"
+}
+
+# Build Variables
+IN_MAKEFILE=make.conf
+OUT_MAKEFILE=makefile
+REQUIRED_C_STANDARD=1
+export REQUIRED_C_STANDARD
+
+SUPPORTED_ARCHS="i386 amd64 ppc ppc64"
+i386_ALTNAMES="i386 i486 i586 i686 i86pc"
+amd64_ALTNAMES="amd64 x86_64"
+ppc_ALTNAMES="ppc powerpc"
+ppc64_ALTNAMES="ppc64 powerpc"
+
+# compatible toolchains
+i386_COMPATIBLE_TOOLCHAINS="amd64"
+ppc_COMPATIBLE_TOOLCHAINS="ppc64"
+
+if [ -z "$CONFIGURED" ]; then
+	TARGET_ARCH=`uname -m`
+	export TARGET_ARCH
+	VERBOSE=0
+	export VERBOSE
+	BUILD_PREFIX=""
+	export BUILD_PREFIX
+
+	while getopts 'A:B:vh' opt; do
+	    case $opt in
+	        (A) TARGET_ARCH=$OPTARG;;
+	        (B) BUILD_DIR=$OPTARG;;
+	        (v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
+	        (h) usage "$0"; exit 1;;
+			(?) usage "$0" >&2; exit 1;;
+	    esac
+	done
+
+	# check that selected arch is legal and set preferred name
+	for ARCH in $SUPPORTED_ARCHS; do
+		eval "ALTNAMES=\$${ARCH}_ALTNAMES"
+		for ALTNAME in $ALTNAMES; do
+			if [ "$TARGET_ARCH" = "$ALTNAME" ]; then
+				TARGET_ARCH="$ARCH"
+			fi
+		done
+	done
+	log 0 "TARGETING $TARGET_ARCH"
+
+	CONFIGURED=1
+	export CONFIGURED
+fi
+shift `dc -e "$OPTIND 1 - p"`
+
+# set up tool paths and names to search for
+CC_CANDIDATES="c99 cc clang gcc"
+LD_CANDIDATES="ld bfd lld ld.lld gold ld.gold mold ld.mold"
+AR_CANDIDATES="ar llvm-ar gcc-ar"
+eval "TOOLCHAIN_ARCHS=\"\$${TARGET_ARCH}_ALTNAMES\""
+eval "COMPATIBLE_TOOLCHAINS=\"\$${TARGET_ARCH}_COMPATIBLE_TOOLCHAINS\""
+for TC_COMPAT in $COMPATIBLE_TOOLCHAINS; do
+	eval "ALTNAMES=\"\$${TC_COMPAT}_ALTNAMES\""
+	for ALTNAME in $ALTNAMES; do
+		TOOLCHAIN_ARCHS="$TOOLCHAIN_ARCHS $ALTNAME"
+	done
+done
+for TC_ARCH in $TOOLCHAIN_ARCHS; do
+	CC_CANDIDATES="$CC_CANDIDATES $TC_ARCH-elf-gcc $TC_ARCH-elf-none-gcc $TC_ARCH-elf-alix-gcc"
+#	LD_CANDIDATES="$LD_CANDIDATES $TC_ARCH-elf-ld $TC_ARCH-elf-none-ld $TC_ARCH-elf-alix-ld $TC_ARCH-elf-ld.bfd $TC_ARCH-elf-none-ld.bfd $TC_ARCH-elf-alix-ld.bfd"
+#	AR_CANDIDATES="$AR_CANDIDATES $TC_ARCH-elf-ar $TC_ARCH-elf-none-ar $TC_ARCH-elf-alix-ar"
+done
+
+# determine CC
+if [ -z "$CC" ]; then
+	FOUND=""
+	for DIR in `path_dirs`; do
+		if [ ! -z "$FOUND" ]; then
+			break
+		fi
+
+		log 2 "CHECKING \"$DIR\" for CC candidates"
+		for CANDIDATE in $CC_CANDIDATES; do
+			CC="$DIR/$CANDIDATE"
+			CFLAGS_TEST="$CFLAGS"
+			if [ ! -x "$CC" ]; then
+				continue
+			fi
+			log 1 "TESTING \"$CC\""
+
+			# Check brand of C compiler
+			log 1 "C compiler brand..."
+			if "$CC" $CFLAGS_TEST -v 2>&1 | grep -i "clang" > /dev/null; then
+				CC_BRAND=clang
+			elif "$CC" $CFLAGS_TEST -v 2>&1 | grep -i "gcc" > /dev/null; then
+				CC_BRAND=gcc
+			elif [ "$CC" = "c99" ]; then
+				CC_BRAND=posix
+			fi
+			log 1 "$CC_BRAND"
+
+			# check default target of compiler
+			log 1 "Default C compiler target..."
+			CC_TARGET=`"$CC" $CFLAGS_TEST -v 2>&1 | grep -i "^target" | cut -d' ' -f2 | cut -d'-' -f1`
+			if [ $? -ne 0 ]; then
+				log 1 "FAILED"
+				break
+			fi
+			log 1 "$CC_TARGET"
+
+			# verify if compiler target matches requested target
+			# if not, attempt to set CFLAGS to change target
+
+			# Test for ELF output fomat
+			log 1 "Executable format test..."
+			printf "int main(int argc,char **argv){return 0;}\n" > .filefmt.c
+			"$CC" $CFLAGS_TEST -c .filefmt.c
+			EXPECTED_ELF_MAGIC=`printf '\177ELF'`
+			ACTUAL_ELF_MAGIC=`head -c 4 .filefmt.o`
+			rm -f .filefmt.o .filefmt.c
+			if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
+				log 1 "FAILED"
+				break
+			fi
+			log 1 "OK"
+
+			# check if compiler automatically imports headers
+			log 1 "Checking if C compiler provides stdlib headers..."
+			printf "#include <stdio.h>\n" > .stdinc.c
+			"$CC" $CFLAGS_TEST -c .stdinc.c 2>/dev/null
+			TMP=$?
+			rm -f .stdinc.c .stdinc.o
+			if [ "$TMP" -ne 0 ]; then
+				case "$CC_BRAND" in
+					gcc)
+						CFLAGS="$CFLAGS -nostdinc"
+						;;
+					clang)
+						CFLAGS="$CFLAGS -nostdinc"
+						;;
+					*)
+						log 1 "FAILED"
+						break
+						;;
+				esac
+			fi
+			log 1 "OK"
+
+			# Test C standard
+			log 1 "Standard C test..."
+			printf "#if !defined(__STDC__)\n0\n#elif defined(__STDC_VERSION__)\n__STDC_VERSION__\n#else\n1\n#endif\n" > .std.c
+			CC_STD=`"$CC" $CFLAGS_TEST -E .std.c | grep '^[0-9]' | sed -e 's/L$//'`
+			rm -f .std.c
+			if [ "$CC_STD" -lt "$REQUIRED_C_STANDARD" ]; then
+				log 1 "FAILED"
+				break
+			fi
+			log 1 "OK ($CC_STD)"
+
+			log 1 "PASSED $CC"
+
+			CFLAGS="$CFLAGS_TEST"
+			FOUND="yes"
+			break
+		done
+	done
+
+	if [ -z "$FOUND" ]; then
+		log 0 "Failed to locate compatible CC"
+		exit 1
+	fi
+
+	export CC
+	export CFLAGS
+fi
+
+# determine LD
+if [ -z "$LD" ]; then
+	FOUND=""
+
+	for DIR in `path_dirs`; do
+		if [ ! -z "$FOUND" ]; then
+			break
+		fi
+
+		log 2 "CHECKING \"$DIR\" for LD candidates"
+
+		for CANDIDATE in $LD_CANDIDATES; do
+			LD="$DIR/$CANDIDATE"
+			LDFLAGS_TEST="$LDFLAGS"
+
+			if [ ! -x $LD ]; then
+				continue
+			fi
+
+			log 1 "TESTING \"$LD\""
+
+			# run tests
+
+			LDFLAGS="$LDFLAGS_TEST"
+			FOUND="yes"
+			break
+		done
+	done
+
+	if [ -z "$FOUND" ]; then
+		log 0 "Failed to locate compatible LD"
+		exit 1
+	fi
+
+	export LD
+	export LDFLAGS
+fi
+
+# determine AR
+if [ -z "$AR" ]; then
+	FOUND=""
+
+	for DIR in `path_dirs`; do
+		if [ ! -z "$FOUND" ]; then
+			break
+		fi
+
+		log 2 "CHECKING \"$DIR\" for AR candidates"
+
+		for CANDIDATE in $AR_CANDIDATES; do
+			AR="$DIR/$CANDIDATE"
+			ARFLAGS_TEST="$ARFLAGS -rv"
+
+			if [ ! -x "$AR" ]; then
+				continue
+			fi
+
+			log 1 "TESTING \"$AR\""
+
+			# run tests
+
+			ARFLAGS="$ARFLAGS_TEST"
+			FOUND="yes"
+			break
+		done
+	done
+
+	if [ -z "$FOUND" ]; then
+		log 0 "Failed to locate compatible AR"
+		exit 1
+	fi
+
+	export AR
+	export ARFLAGS
+fi
+
+# Determine current directory
+DIR="$PWD/"
+if [ $# -gt 0 ]; then
+	DIR="$1"
+fi
+# Lookup subdirectories
+SUBDIRS=`ls -d "$DIR"*/ 2> /dev/null`
+# Recurse through subdirectories and configure them
+if [ $? -eq 0 ]; then
+	for SUBDIR in $SUBDIRS; do
+		log 2 "ENTERING $SUBDIR"
+		$0 "$SUBDIR"
+		log 2 "LEAVING $SUBDIR"
+	done
+fi
+
+set -e
+
+# look for makefile configuration file
+
+if [ ! -f "$DIR/$IN_MAKEFILE" ]; then
+	exit 1
+fi
+
+# Import directory make variables as shell variables
+. "$DIR/$IN_MAKEFILE"
+
+SUBDIR_TARGETS=
+for SUBDIR in $SUBDIRS; do
+	SUBDIR_TARGETS="$SUBDIR_TARGETS $SUBDIR.dir"
+done
+
+log 0 "CREATING $DIR$OUT_MAKEFILE"
+
+# create output file
+if [ -e "$DIR$OUT_MAKEFILE" ]; then
+	rm -f "$DIR$OUT_MAKEFILE"
+fi
+touch "$DIR$OUT_MAKEFILE"
+BUILD_SOURCES=
+BUILD_ARTIFACTS=
+
+
+
+
+# write output file
+emit ".POSIX:\n"
+emit "\n"
+emit "all: $SUBDIR_TARGETS $TARGETS `staticlib_fname $STATIC_LIB_TARGETS` $DYNAMIC_LIB_TARGETS\n"
+emit "\n"
+for SUBDIR in $SUBDIRS; do
+	emit "$SUBDIR.dir: $SUBDIR\n"
+	emit "\tcd \"$SUBDIR\" && \$(MAKE) all\n"
+	emit "\n"
+done
+for TARGET in $TARGETS; do
+	# evaluate target variables
+	eval "EXTRA_DEPS=\${${TARGET}_EXTRA_DEPENDENCIES}"
+	eval "TARGET_SOURCES=\${${TARGET}_SOURCES}"
+	eval "TARGET_LDFLAGS=\${${TARGET}_LDFLAGS}"
+	eval "TARGET_LIBS=\${${TARGET}_LIBS}"
+	eval "LIB_LOOKUP_DIRS=\${${TARGET}_LIB_LOOKUP_DIRS}"
+	OBJECTS="`src2obj $TARGET_SOURCES`"
+	BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
+	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
+
+	emit "$TARGET: $STATIC_LIBS $OBJECTS $EXTRA_DEPS\n"
+	emit "\t\"${CC}\" $LDFLAGS $TARGET_LDFLAGS"
+	for LIB_LOOKUP_DIR in $LIB_LOOKUP_DIRS; do
+		emit " -L$LIB_LOOKUP_DIR"
+	done
+	emit " -o$TARGET $OBJECTS"
+	for LIB in $TARGET_LIBS; do
+		emit " -l$LIB"
+	done
+	emit "\n\n"
+done
+for STATIC_LIB in $STATIC_LIB_TARGETS; do
+	# evaluate library variables
+	eval "TARGET_SOURCES=\${${STATIC_LIB}_SOURCES}"
+	OBJECTS="`src2obj $TARGET_SOURCES`"
+	BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
+	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
+
+	# TODO: emit target linking
+	emit "`staticlib_fname $STATIC_LIB`: $OBJECTS $EXTRA_DEPS\n"
+	emit "\t\"${AR}\" ${ARFLAGS} lib$STATIC_LIB.a $OBJECTS\n"
+	emit "\n"
+done
+for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
+	# evaluate library variables
+	eval "TARGET_SOURCES=\${${DYNAMIC_LIB}_SOURCES}"
+	OBJECTS="`src2obj $TARGET_SOURCES`"
+	BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
+	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
+
+	# TODO: emit target linking
+done
+for SOURCE in $BUILD_SOURCES; do
+	emit "`src2obj $SOURCE`: $SOURCE\n"
+	emit "\t\"${CC}\" ${CFLAGS} -c -o `src2obj $SOURCE` $SOURCE\n"
+	emit "\n"
+done
+emit "clean:\n"
+for SUBDIR in $SUBDIRS; do
+	emit "\tcd \"$SUBDIR\" && \$(MAKE) clean\n"
+done
+for ARTIFACT in $BUILD_ARTIFACTS; do
+	emit "\trm -f $ARTIFACT\n"
+done
+for TARGET in $TARGETS; do
+	emit "\trm -f $TARGET\n"
+done
+for STATIC_LIB in $STATIC_LIB_TARGETS; do
+	emit "\trm -f `staticlib_fname $STATIC_LIB`\n"
+done
+for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
+	emit "\trm -f $DYNAMIC_LIB\n"
+done
+emit "\n"
+
