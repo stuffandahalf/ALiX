@@ -53,6 +53,12 @@ staticlib_fname() {
 	done
 }
 
+dynlib_fname() {
+	for LIB in $@; do
+		printf " lib$LIB.so"
+	done
+}
+
 ldargs() {
 	for LIB in $@; do
 		printf "-"
@@ -323,6 +329,7 @@ if [ $? -eq 0 ]; then
 		log 2 "LEAVING $SUBDIR"
 	done
 fi
+SUBDIRS=
 
 set -e
 
@@ -356,7 +363,7 @@ BUILD_ARTIFACTS=
 # write output file
 emit ".POSIX:\n"
 emit "\n"
-emit "all: $SUBDIR_TARGETS $TARGETS `staticlib_fname $STATIC_LIB_TARGETS` $DYNAMIC_LIB_TARGETS\n"
+emit "all: $SUBDIR_TARGETS $TARGETS `staticlib_fname $STATIC_LIB_TARGETS` `dynlib_fname $DYNAMIC_LIB_TARGETS`\n"
 emit "\n"
 for SUBDIR in $SUBDIRS; do
 	emit "$SUBDIR.dir: $SUBDIR\n"
@@ -405,6 +412,8 @@ for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	# TODO: emit target linking
+	emit "`dynlib_fname \"$DYNAMIC_LIB\"`: $OBJECTS $EXTRA_DEPTS\n"
+	emit "\t\"${CC}\" $LDFLAGS -shared -o \"`dynlib_fname \"$DYNAMIC_LIB\"`\" $OBJECTS\n"
 done
 for SOURCE in $BUILD_SOURCES; do
 	emit "`src2obj $SOURCE`: $SOURCE\n"
@@ -425,7 +434,7 @@ for STATIC_LIB in $STATIC_LIB_TARGETS; do
 	emit "\trm -f `staticlib_fname $STATIC_LIB`\n"
 done
 for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
-	emit "\trm -f $DYNAMIC_LIB\n"
+	emit "\trm -f `dynlib_fname $DYNAMIC_LIB`\n"
 done
 emit "\n"
 
