@@ -1,3 +1,0 @@
-noinst_LIBRARIES = libdev.a
-libdev_a_SOURCES = fbcons.c
-

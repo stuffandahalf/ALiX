@@ -1,3 +1,0 @@
-noinst_LIBRARIES = libkern.a
-libkern_a_SOURCES = devtab.c
-
