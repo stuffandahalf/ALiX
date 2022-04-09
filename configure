@@ -49,13 +49,13 @@ src2obj() {
 
 staticlib_fname() {
 	for LIB in $@; do
-		printf " lib$LIB.a"
+		printf "lib$LIB.a "
 	done
 }
 
 dynlib_fname() {
 	for LIB in $@; do
-		printf " lib$LIB.so"
+		printf "lib$LIB.so "
 	done
 }
 
