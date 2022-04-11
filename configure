@@ -23,7 +23,7 @@
 
 # functions to simplify makefile generation
 usage() {
-	printf "usage: %s [-A architecture] [-B build dir] [-v+] [-h]\n" $1
+	printf "usage: %s [-A architecture] [-B build dir] [-F kernel format] [-v+] [-h]\n" $1
 }
 
 log() {
@@ -90,11 +90,14 @@ if [ -z "$CONFIGURED" ]; then
 	export VERBOSE
 	BUILD_PREFIX=""
 	export BUILD_PREFIX
+	KERNEL_FORMAT=""
+	export KERNEL_FORMAT
 
-	while getopts 'A:B:vh' opt; do
+	while getopts 'A:B:F:vh' opt; do
 	    case $opt in
 	        (A) TARGET_ARCH=$OPTARG;;
 	        (B) BUILD_DIR=$OPTARG;;
+	        (F) KERNEL_FORMAT=$OPTARG;;
 	        (v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
 	        (h) usage "$0"; exit 1;;
 			(?) usage "$0" >&2; exit 1;;
