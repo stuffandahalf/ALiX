@@ -1,6 +1,8 @@
 # derived from boot.s found here
 # https://wiki.osdev.org/Bare_Bones
 
+.code32
+
 .set ALIGN, 1 << 0
 .set MEMINFO, 1 << 1
 .set FLAGS, ALIGN | MEMINFO
