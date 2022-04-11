@@ -319,6 +319,7 @@ DIR="$PWD/"
 if [ $# -gt 0 ]; then
 	DIR="$1"
 fi
+export DIR
 # Lookup subdirectories
 SUBDIRS=`ls -d "$DIR"*/ 2> /dev/null`
 # Recurse through subdirectories and configure them
