@@ -122,7 +122,7 @@ shift `dc -e "$OPTIND 1 - p"`
 
 # set up tool paths and names to search for
 CC_CANDIDATES="c99 cc clang gcc"
-LD_CANDIDATES="ld bfd lld ld.lld gold ld.gold mold ld.mold"
+#LD_CANDIDATES="ld bfd lld ld.lld gold ld.gold mold ld.mold"
 AR_CANDIDATES="ar llvm-ar gcc-ar"
 eval "TOOLCHAIN_ARCHS=\"\$${TARGET_ARCH}_ALTNAMES\""
 eval "COMPATIBLE_TOOLCHAINS=\"\$${TARGET_ARCH}_COMPATIBLE_TOOLCHAINS\""
@@ -134,8 +134,8 @@ for TC_COMPAT in $COMPATIBLE_TOOLCHAINS; do
 done
 for TC_ARCH in $TOOLCHAIN_ARCHS; do
 	CC_CANDIDATES="$CC_CANDIDATES $TC_ARCH-elf-gcc $TC_ARCH-elf-none-gcc $TC_ARCH-elf-alix-gcc"
-#	LD_CANDIDATES="$LD_CANDIDATES $TC_ARCH-elf-ld $TC_ARCH-elf-none-ld $TC_ARCH-elf-alix-ld $TC_ARCH-elf-ld.bfd $TC_ARCH-elf-none-ld.bfd $TC_ARCH-elf-alix-ld.bfd"
-#	AR_CANDIDATES="$AR_CANDIDATES $TC_ARCH-elf-ar $TC_ARCH-elf-none-ar $TC_ARCH-elf-alix-ar"
+	#LD_CANDIDATES="$LD_CANDIDATES $TC_ARCH-elf-ld $TC_ARCH-elf-none-ld $TC_ARCH-elf-alix-ld $TC_ARCH-elf-ld.bfd $TC_ARCH-elf-none-ld.bfd $TC_ARCH-elf-alix-ld.bfd"
+	AR_CANDIDATES="$AR_CANDIDATES $TC_ARCH-elf-ar $TC_ARCH-elf-none-ar $TC_ARCH-elf-alix-ar"
 done
 
 # determine CC
@@ -200,10 +200,10 @@ if [ -z "$CC" ]; then
 			if [ "$TMP" -ne 0 ]; then
 				case "$CC_BRAND" in
 					gcc)
-						CFLAGS="$CFLAGS -nostdinc"
+						CFLAGS_TEST="$CFLAGS_TEST -nostdinc"
 						;;
 					clang)
-						CFLAGS="$CFLAGS -nostdinc"
+						CFLAGS_TEST="$CFLAGS_TEST -nostdinc"
 						;;
 					*)
 						log 1 "FAILED"
@@ -242,42 +242,42 @@ if [ -z "$CC" ]; then
 fi
 
 # determine LD
-if [ -z "$LD" ]; then
-	FOUND=""
+#~ if [ -z "$LD" ]; then
+	#~ FOUND=""
 
-	for DIR in `path_dirs`; do
-		if [ ! -z "$FOUND" ]; then
-			break
-		fi
+	#~ for DIR in `path_dirs`; do
+		#~ if [ ! -z "$FOUND" ]; then
+			#~ break
+		#~ fi
 
-		log 2 "CHECKING \"$DIR\" for LD candidates"
+		#~ log 2 "CHECKING \"$DIR\" for LD candidates"
 
-		for CANDIDATE in $LD_CANDIDATES; do
-			LD="$DIR/$CANDIDATE"
-			LDFLAGS_TEST="$LDFLAGS"
+		#~ for CANDIDATE in $LD_CANDIDATES; do
+			#~ LD="$DIR/$CANDIDATE"
+			#~ LDFLAGS_TEST="$LDFLAGS"
 
-			if [ ! -x $LD ]; then
-				continue
-			fi
+			#~ if [ ! -x $LD ]; then
+				#~ continue
+			#~ fi
 
-			log 1 "TESTING \"$LD\""
+			#~ log 1 "TESTING \"$LD\""
 
-			# run tests
+			#~ # run tests
 
-			LDFLAGS="$LDFLAGS_TEST"
-			FOUND="yes"
-			break
-		done
-	done
+			#~ LDFLAGS="$LDFLAGS_TEST"
+			#~ FOUND="yes"
+			#~ break
+		#~ done
+	#~ done
 
-	if [ -z "$FOUND" ]; then
-		log 0 "Failed to locate compatible LD"
-		exit 1
-	fi
+	#~ if [ -z "$FOUND" ]; then
+		#~ log 0 "Failed to locate compatible LD"
+		#~ exit 1
+	#~ fi
 
-	export LD
-	export LDFLAGS
-fi
+	#~ export LD
+	#~ export LDFLAGS
+#~ fi
 
 # determine AR
 if [ -z "$AR" ]; then
@@ -301,6 +301,26 @@ if [ -z "$AR" ]; then
 			log 1 "TESTING \"$AR\""
 
 			# run tests
+			log 1 "Linking ELF library..."
+			echo "void test(void) {}" > .artest.c
+			echo "void _start(void) {}" > .driver.c
+			"$CC" $CFLAGS -c -o .artest.o .artest.c
+			"$AR" $ARFLAGS_TEST libtest.a .artest.o 2> /dev/null > /dev/null
+			if [ $? -ne 0 ]; then
+				rm -f .artest.c .driver.c .artest.o libtest.a
+				log 1 "Failed"
+				continue
+			fi
+			"$CC" $CFLAGS -c -o .driver.o .driver.c
+			#echo "\"$CC\" $LDFLAGS -L. -o .test .driver.o -ltest"
+			"$CC" $LDFLAGS -L. -o .test .driver.o -ltest
+			TMP=$?
+			rm -f .artest.c .driver.c .artest.o .driver.o libtest.a .test
+			if [ $TMP -ne 0 ]; then
+				log 1 "Failed"
+				continue
+			fi
+			log 1 "OK"
 
 			ARFLAGS="$ARFLAGS_TEST"
 			FOUND="yes"
