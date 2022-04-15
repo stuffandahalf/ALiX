@@ -122,7 +122,7 @@ shift `dc -e "$OPTIND 1 - p"`
 
 # set up tool paths and names to search for
 CC_CANDIDATES="c99 cc clang gcc"
-#LD_CANDIDATES="ld bfd lld ld.lld gold ld.gold mold ld.mold"
+LD_CANDIDATES="ld bfd lld ld.lld gold ld.gold mold ld.mold"
 AR_CANDIDATES="ar llvm-ar gcc-ar"
 eval "TOOLCHAIN_ARCHS=\"\$${TARGET_ARCH}_ALTNAMES\""
 eval "COMPATIBLE_TOOLCHAINS=\"\$${TARGET_ARCH}_COMPATIBLE_TOOLCHAINS\""
@@ -134,7 +134,7 @@ for TC_COMPAT in $COMPATIBLE_TOOLCHAINS; do
 done
 for TC_ARCH in $TOOLCHAIN_ARCHS; do
 	CC_CANDIDATES="$CC_CANDIDATES $TC_ARCH-elf-gcc $TC_ARCH-elf-none-gcc $TC_ARCH-elf-alix-gcc"
-	#LD_CANDIDATES="$LD_CANDIDATES $TC_ARCH-elf-ld $TC_ARCH-elf-none-ld $TC_ARCH-elf-alix-ld $TC_ARCH-elf-ld.bfd $TC_ARCH-elf-none-ld.bfd $TC_ARCH-elf-alix-ld.bfd"
+	LD_CANDIDATES="$LD_CANDIDATES $TC_ARCH-elf-ld $TC_ARCH-elf-none-ld $TC_ARCH-elf-alix-ld $TC_ARCH-elf-ld.bfd $TC_ARCH-elf-none-ld.bfd $TC_ARCH-elf-alix-ld.bfd"
 	AR_CANDIDATES="$AR_CANDIDATES $TC_ARCH-elf-ar $TC_ARCH-elf-none-ar $TC_ARCH-elf-alix-ar"
 done
 
@@ -241,43 +241,45 @@ if [ -z "$CC" ]; then
 	export CFLAGS
 fi
 
+LD_CANDIDATES="$CC $LD_CANDIDATES"
+
 # determine LD
-#~ if [ -z "$LD" ]; then
-	#~ FOUND=""
+if [ -z "$LD" ]; then
+	FOUND=""
 
-	#~ for DIR in `path_dirs`; do
-		#~ if [ ! -z "$FOUND" ]; then
-			#~ break
-		#~ fi
+	for DIR in `path_dirs`; do
+		if [ ! -z "$FOUND" ]; then
+			break
+		fi
 
-		#~ log 2 "CHECKING \"$DIR\" for LD candidates"
+		log 2 "CHECKING \"$DIR\" for LD candidates"
 
-		#~ for CANDIDATE in $LD_CANDIDATES; do
-			#~ LD="$DIR/$CANDIDATE"
-			#~ LDFLAGS_TEST="$LDFLAGS"
+		for CANDIDATE in $LD_CANDIDATES; do
+			LD="$DIR/$CANDIDATE"
+			LDFLAGS_TEST="$LDFLAGS"
 
-			#~ if [ ! -x $LD ]; then
-				#~ continue
-			#~ fi
+			if [ ! -x $LD ]; then
+				continue
+			fi
 
-			#~ log 1 "TESTING \"$LD\""
+			log 1 "TESTING \"$LD\""
 
-			#~ # run tests
+			# run tests
 
-			#~ LDFLAGS="$LDFLAGS_TEST"
-			#~ FOUND="yes"
-			#~ break
-		#~ done
-	#~ done
+			LDFLAGS="$LDFLAGS_TEST"
+			FOUND="yes"
+			break
+		done
+	done
 
-	#~ if [ -z "$FOUND" ]; then
-		#~ log 0 "Failed to locate compatible LD"
-		#~ exit 1
-	#~ fi
+	if [ -z "$FOUND" ]; then
+		log 0 "Failed to locate compatible LD"
+		exit 1
+	fi
 
-	#~ export LD
-	#~ export LDFLAGS
-#~ fi
+	export LD
+	export LDFLAGS
+fi
 
 # determine AR
 if [ -z "$AR" ]; then
@@ -313,7 +315,7 @@ if [ -z "$AR" ]; then
 			fi
 			"$CC" $CFLAGS -c -o .driver.o .driver.c
 			#echo "\"$CC\" $LDFLAGS -L. -o .test .driver.o -ltest"
-			"$CC" $LDFLAGS -L. -o .test .driver.o -ltest
+			"$LD" $LDFLAGS -L. -o .test .driver.o -ltest
 			TMP=$?
 			rm -f .artest.c .driver.c .artest.o .driver.o libtest.a .test
 			if [ $TMP -ne 0 ]; then
@@ -412,7 +414,7 @@ for TARGET in $TARGETS; do
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	emit "$TARGET: $STATIC_LIBS $OBJECTS $EXTRA_DEPS\n"
-	emit "\t\"${CC}\" $LDFLAGS $TARGET_LDFLAGS"
+	emit "\t\"${LD}\" $LDFLAGS $TARGET_LDFLAGS"
 	for LIB_LOOKUP_DIR in $LIB_LOOKUP_DIRS; do
 		emit " -L$LIB_LOOKUP_DIR"
 	done
@@ -443,7 +445,7 @@ for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 
 	# TODO: emit target linking
 	emit "`dynlib_fname \"$DYNAMIC_LIB\"`: $OBJECTS $EXTRA_DEPTS\n"
-	emit "\t\"${CC}\" $LDFLAGS -shared -o `dynlib_fname \"$DYNAMIC_LIB\"` $OBJECTS\n"
+	emit "\t\"${LD}\" $LDFLAGS -shared -o `dynlib_fname \"$DYNAMIC_LIB\"` $OBJECTS\n"
 done
 for SOURCE in $BUILD_SOURCES; do
 	emit "`src2obj $SOURCE`: $SOURCE\n"
