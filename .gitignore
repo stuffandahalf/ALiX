@@ -72,3 +72,6 @@ tools/llvm*
 
 # cmake build files
 *build*
+
+# VS project files
+.vs
