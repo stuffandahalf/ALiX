@@ -21,12 +21,19 @@ stack_bottom:
 .skip 16384 # 16KiB
 stack_top:
 
+mbd:
+	.long 0
+
 .section .text
 .global _start
 .type _start, @function
 _start:
 	# setup stack
 	movl $stack_top, %esp
+	movl %ebx, mbd
+
+	pushl %ebx
+	call init_mem
 
 	call main
 
