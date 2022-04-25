@@ -67,8 +67,17 @@ ldargs() {
 	printf "\n"
 }
 
+emit_target_deps() {
+	for SOURCE in $@; do
+		emit "`src2obj $SOURCE`: $SOURCE\n"
+		emit "\t\"${CC}\" ${CFLAGS} ${TARGET_CFLAGS} -c -o `src2obj $SOURCE` $SOURCE\n"
+		emit "\n"
+	done
+}
+
 # Build Variables
 IN_MAKEFILE=make.conf
+IN_PREDEF_MAKEFILE=make.predef.conf
 OUT_MAKEFILE=makefile
 REQUIRED_C_STANDARD=1
 export REQUIRED_C_STANDARD
@@ -345,6 +354,12 @@ if [ $# -gt 0 ]; then
 	DIR="$1"
 fi
 export DIR
+
+# import any configuration that should be applied to subdirectories
+if [ -f $DIR/$IN_PREDEF_MAKEFILE ]; then
+	. "$DIR/$IN_PREDEF_MAKEFILE"
+fi
+
 # Lookup subdirectories
 SUBDIRS=`ls -d "$DIR"*/ 2> /dev/null`
 # Recurse through subdirectories and configure them
@@ -386,9 +401,7 @@ if [ -e "$DIR$OUT_MAKEFILE" ]; then
 	rm -f "$DIR$OUT_MAKEFILE"
 fi
 touch "$DIR$OUT_MAKEFILE"
-BUILD_SOURCES=
 BUILD_ARTIFACTS=
-
 
 
 
@@ -408,11 +421,12 @@ for TARGET in $TARGETS; do
 	# evaluate target variables
 	eval "EXTRA_DEPS=\${${TARGET}_EXTRA_DEPENDENCIES}"
 	eval "TARGET_SOURCES=\${${TARGET}_SOURCES}"
+	eval "TARGET_CFLAGS=\${${TARGET}_CFLAGS}"
 	eval "TARGET_LDFLAGS=\${${TARGET}_LDFLAGS}"
 	eval "TARGET_LIBS=\${${TARGET}_LIBS}"
 	eval "LIB_LOOKUP_DIRS=\${${TARGET}_LIB_LOOKUP_DIRS}"
 	OBJECTS="`src2obj $TARGET_SOURCES`"
-	BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
+	#BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	emit "$TARGET: subdirs $TARGET_LIBS $OBJECTS $EXTRA_DEPS\n"
@@ -424,35 +438,36 @@ for TARGET in $TARGETS; do
 	for LIB in $TARGET_LIBS; do
 		emit " -l$LIB"
 	done
-	emit "\n\n"
+	emit "\n"
+	emit_target_deps $TARGET_SOURCES
 done
 for STATIC_LIB in $STATIC_LIB_TARGETS; do
 	# evaluate library variables
 	eval "TARGET_SOURCES=\${${STATIC_LIB}_SOURCES}"
+	eval "TARGET_CFLAGS=\${${STATIC_LIB}_CFLAGS}"
+	eval "TARGET_ARFLAGS=\${${STATIC_LIB}_ARFLAGS}"
 	OBJECTS="`src2obj $TARGET_SOURCES`"
-	BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	# TODO: emit target linking
 	emit "`staticlib_fname $STATIC_LIB`: subdirs $OBJECTS $EXTRA_DEPS\n"
-	emit "\t\"${AR}\" ${ARFLAGS} `staticlib_fname \"$STATIC_LIB\"` $OBJECTS\n"
+	emit "\t\"${AR}\" ${ARFLAGS} ${TARGET_ARFLAGS} `staticlib_fname \"$STATIC_LIB\"` $OBJECTS\n"
 	emit "\n"
+	emit_target_deps $TARGET_SOURCES
 done
 for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 	# evaluate library variables
 	eval "TARGET_SOURCES=\${${DYNAMIC_LIB}_SOURCES}"
+	eval "TARGET_CFLAGS=\${${DYNAMIC_LIB}_CFLAGS}"
+	eval "TARGET_LDFLAGS=\${${DYNAMIC_LIB}_LDFLAGS}"
 	OBJECTS="`src2obj $TARGET_SOURCES`"
-	BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	# TODO: emit target linking
 	emit "`dynlib_fname \"$DYNAMIC_LIB\"`: subdirs $OBJECTS $EXTRA_DEPTS\n"
 	emit "\t\"${LD}\" $LDFLAGS -shared -o `dynlib_fname \"$DYNAMIC_LIB\"` $OBJECTS\n"
-done
-for SOURCE in $BUILD_SOURCES; do
-	emit "`src2obj $SOURCE`: $SOURCE\n"
-	emit "\t\"${CC}\" ${CFLAGS} -c -o `src2obj $SOURCE` $SOURCE\n"
 	emit "\n"
+	emit_target_deps $TARGET_SOURCES
 done
 emit "clean:\n"
 for SUBDIR in $SUBDIRS; do
