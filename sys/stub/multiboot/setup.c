@@ -1,7 +1,8 @@
 #include <multiboot.h>
+#include <alix/memblk.h>
 
 void
-init_mem(void *mbd)
+setup32(void *mbd)
 {
 
 }

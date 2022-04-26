@@ -1,17 +1,17 @@
 # derived from boot.s found here
 # https://wiki.osdev.org/Bare_Bones
 
+#define ASM_FILE 1
+#include <multiboot.h>
+
 .code32
 
-.set ALIGN, 1 << 0
-.set MEMINFO, 1 << 1
-.set FLAGS, ALIGN | MEMINFO
-.set MAGIC, 0x1BADB002
-.set CHECKSUM, -(MAGIC + FLAGS)
+#define FLAGS (MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO)
+#define CHECKSUM (-(MULTIBOOT_HEADER_MAGIC + FLAGS))
 
 .section .multiboot
 .align 4
-.long MAGIC
+.long MULTIBOOT_HEADER_MAGIC
 .long FLAGS
 .long CHECKSUM
 
@@ -33,7 +33,7 @@ _start:
 	movl %ebx, mbd
 
 	pushl %ebx
-	call init_mem
+	call setup32
 
 	call main
 
