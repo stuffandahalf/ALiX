@@ -97,6 +97,9 @@ amd64_ALTNAMES="amd64 x86_64 x86-64"
 ppc_ALTNAMES="ppc powerpc"
 ppc64_ALTNAMES="ppc64 powerpc"
 
+i386_COMPATIBLE_TOOLCHAINS=amd64
+ppc_COMPATIBLE_TOOLCHAINS=ppc64
+
 if [ -z "$CONFIGURED" ]; then
 	TARGET_ARCH=`uname -m`
 	export TARGET_ARCH
