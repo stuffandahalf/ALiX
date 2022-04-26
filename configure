@@ -75,6 +75,15 @@ emit_target_deps() {
 	done
 }
 
+test_file_arch() {
+	for ARCH in $ALTNAMES; do
+		if file "$1" | grep -i "$ARCH" > /dev/null; then
+			return 0
+		fi
+	done
+	return 1
+}
+
 # Build Variables
 IN_MAKEFILE=make.conf
 IN_PREDEF_MAKEFILE=make.predef.conf
@@ -83,14 +92,10 @@ REQUIRED_C_STANDARD=1
 export REQUIRED_C_STANDARD
 
 SUPPORTED_ARCHS="i386 amd64 ppc ppc64"
-i386_ALTNAMES="i386 i486 i586 i686 i86pc"
-amd64_ALTNAMES="amd64 x86_64"
+i386_ALTNAMES="i386 i486 i586 i686 i86pc 80386 80486 80586 80686"
+amd64_ALTNAMES="amd64 x86_64 x86-64"
 ppc_ALTNAMES="ppc powerpc"
 ppc64_ALTNAMES="ppc64 powerpc"
-
-# compatible toolchains
-i386_COMPATIBLE_TOOLCHAINS="amd64"
-ppc_COMPATIBLE_TOOLCHAINS="ppc64"
 
 if [ -z "$CONFIGURED" ]; then
 	TARGET_ARCH=`uname -m`
@@ -175,14 +180,37 @@ if [ -z "$CC" ]; then
 			fi
 			log 1 "$CC_BRAND"
 
-			# check default target of compiler
-			log 1 "Default C compiler target..."
-			CC_TARGET=`"$CC" $CFLAGS_TEST -v 2>&1 | grep -i "^target" | cut -d' ' -f2 | cut -d'-' -f1`
-			if [ $? -ne 0 ]; then
-				log 1 "FAILED"
-				break
+			# check if compiler automatically imports headers
+			log 1 "Checking if C compiler provides stdlib headers..."
+			printf "#include <stdio.h>\n" > .stdinc.c
+			"$CC" $CFLAGS_TEST -c .stdinc.c #2> /dev/null
+			TMP=$?
+			if [ $TMP -eq 0 ]; then
+				case "$CC_BRAND" in
+					gcc)
+						CFLAGS_TEST="-nostdinc -ffreestanding $CFLAGS_TEST"
+						;;
+					clang)
+						CFLAGS_TEST="-nostdinc -ffreestanding $CFLAGS_TEST"
+						;;
+					# otherwise, default headers imported, but should be avoided if possible
+					#*)
+					#	log 1 "FAILED"
+					#	break
+					#	;;
+				esac
 			fi
-			log 1 "$CC_TARGET"
+			rm -f .stdinc.c .stdinc.o
+			log 1 "OK"
+
+			# check default target of compiler
+			#log 1 "Default C compiler target..."
+			#CC_TARGET=`"$CC" $CFLAGS_TEST -v 2>&1 | grep -i "^target" | cut -d' ' -f2 | cut -d'-' -f1`
+			#if [ $? -ne 0 ]; then
+			#	log 1 "FAILED"
+			#	break
+			#fi
+			#log 1 "$CC_TARGET"
 
 			# verify if compiler target matches requested target
 			# if not, attempt to set CFLAGS to change target
@@ -193,32 +221,39 @@ if [ -z "$CC" ]; then
 			"$CC" $CFLAGS_TEST -c .filefmt.c
 			EXPECTED_ELF_MAGIC=`printf '\177ELF'`
 			ACTUAL_ELF_MAGIC=`head -c 4 .filefmt.o`
-			rm -f .filefmt.o .filefmt.c
 			if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
+				rm -f .filefmt.c .filefmt.o
 				log 1 "FAILED"
 				break
 			fi
 			log 1 "OK"
 
-			# check if compiler automatically imports headers
-			log 1 "Checking if C compiler provides stdlib headers..."
-			printf "#include <stdio.h>\n" > .stdinc.c
-			"$CC" $CFLAGS_TEST -c .stdinc.c 2>/dev/null
-			TMP=$?
-			rm -f .stdinc.c .stdinc.o
-			if [ "$TMP" -ne 0 ]; then
-				case "$CC_BRAND" in
-					gcc)
-						CFLAGS_TEST="$CFLAGS_TEST -nostdinc"
-						;;
-					clang)
-						CFLAGS_TEST="$CFLAGS_TEST -nostdinc"
-						;;
-					*)
-						log 1 "FAILED"
-						break
-						;;
-				esac
+			log 1 "Output file architecture test..."
+			CC_OUTPUT_COMPATIBLE=0
+			eval "ALTNAMES=\"\${${TARGET_ARCH}_ALTNAMES}\""
+			test_file_arch .filefmt.o
+			CC_OUTPUT_COMPATIBLE=$?
+
+			if [ $CC_OUTPUT_COMPATIBLE -ne 0 ]; then
+				if "$CC" -m32 $CFLAGS_TEST -c .filefmt.c; then
+					test_file_arch .filefmt.o
+					CC_OUTPUT_COMPATIBLE=$?
+					if [ $CC_OUTPUT_COMPATIBLE -eq 0 ]; then
+						CFLAGS_TEST="-m32 $CFLAGS_TEST"
+					fi
+				elif [ "$CC_BRAND" == "clang"] && "$CC" -target=$TARGET_ARCH-none-elf $CFLAGS_TEST -c .filefmt.c; then
+					test_file_arch .filefmt.o
+					CC_OUTPUT_COMPATIBLE=$?
+					if [ $CC_OUTPUT_COMPATIBLE -eq 0 ]; then
+						CFLAGS_TEST="-target=$TARGET_ARCH-none-elf $CFLAGS_TEST"
+					fi
+				fi
+			fi
+			
+			rm -f .filefmt.c .filefmt.o
+			if [ $CC_OUTPUT_COMPATIBLE -ne 0 ]; then
+				log 1 "FAILED"
+				break
 			fi
 			log 1 "OK"
 
@@ -250,7 +285,8 @@ if [ -z "$CC" ]; then
 	export CFLAGS
 fi
 
-LD_CANDIDATES="$CC $LD_CANDIDATES"
+#echo "CFLAGS=$CFLAGS"
+#LD_CANDIDATES="$CC $LD_CANDIDATES"
 
 # determine LD
 if [ -z "$LD" ]; then
@@ -274,6 +310,98 @@ if [ -z "$LD" ]; then
 			log 1 "TESTING \"$LD\""
 
 			# run tests
+			echo "void _start(void) { }" > .entry.c
+			echo "extern int puts(const char *); int main(int argc, char **argv) {puts(\"Hello World!\");}" > .main.c
+			
+			#"$CC" $CFLAGS -c .entry.c
+			#"$CC" $CFLAGS -c .main.c
+			#log 2 "Attempting clean link"
+			#"$LD" $LDFLAGS_TEST -o .entry .entry.o 2> /dev/null
+			#file .entry
+			#CLEAN_LINK=$?
+			#if [ $CLEAN_LINK -ne 0 ]; then
+				#log 2 "FAILED"
+			#else
+				#log 2 "OK"
+			#fi
+
+			"$CC" -c .entry.c
+			"$CC" -c .main.c
+			log 2 "Attempt to link user space application"
+			if "$LD" "$LDFLAGS_TEST" -o .main .main.o 2> /dev/null; then
+				log 2 "OK"
+				USERSPACE_LINKER=0
+			else
+				log 2 "FAILED"
+				USERSPACE_LINKER=1
+			fi
+			
+			"$CC" $CFLAGS -c .entry.c
+			"$CC" $CFLAGS -c .main.c
+
+			log 2 "Attempt to link using arch flags"
+			if [ $USERSPACE_LINKER -eq 0 ]; then
+				if "$LD" -m32 $LDFLAGS_TEST -o .main .main.o 2> /dev/null; then
+					LDFLAGS_TEST="-m32 $LDFLAGS_TEST"
+					log 2 "OK"
+				elif "$LD" -target=${TARGET_ARCH}-none-elf $LDFLAGS_TEST -o .main .main.o 2> /dev/null; then
+					LDFLAGS_TEST="-target=${TARGET_ARCH}-none-elf $LDFLAGS_TEST"
+					log 2 "OK"
+				else
+					eval "ALTNAMES=\$${TARGET_ARCH}_ALTNAMES"
+					COMPATIBLE_ALTNAME=1
+					for ALTNAME in $ALTNAMES; do
+						if "$LD" -melf_${ALTNAME} $LDFLAGS_TEST -o .main .main.o 2> /dev/null; then
+							LDFLAGS_TEST="-melf_${ALTNAME} $LDFLAGS_TEST"
+							log 2 "OK"
+							COMPATIBLE_ALTNAME=0
+							break
+						fi
+					done
+					if [ "$COMPATIBLE_ALTNAME" -eq 1 ]; then
+						log 2 "FAILED"
+						rm -f .entry.c .entry.o .entry .main.c .main.o .main
+						continue
+					fi
+				fi
+			else
+				if "$LD" -m32 $LDFLAGS_TEST -o .entry .entry.o 2> /dev/null; then
+					LDFLAGS_TEST="-m32 $LDFLAGS_TEST"
+					log 2 "OK"
+				elif "$LD" -target=${TARGET_ARCH}-none-elf $LDFLAGS_TEST -o .entry .entry.o 2> /dev/null; then
+					LDFLAGS_TEST="-target=${TARGET_ARCH}-none-elf $LDFLAGS_TEST"
+					log 2 "OK"
+				else
+					eval "ALTNAMES=\$${TARGET_ARCH}_ALTNAMES"
+					COMPATIBLE_ALTNAME=1
+					for ALTNAME in $ALTNAMES; do
+						if "$LD" -melf_${ALTNAME} $LDFLAGS_TEST -o .entry .entry.o 2> /dev/null; then
+							LDFLAGS_TEST="-melf_${ALTNAME} $LDFLAGS_TEST"
+							log 2 "OK"
+							COMPATIBLE_ALTNAME=0
+							break
+						fi
+					done
+					if [ "$COMPATIBLE_ALTNAME" -eq 1 ]; then
+						log 2 "FAILED"
+						rm -f .entry.c .entry.o .entry .main.c .main.o .main
+						continue
+					fi
+				fi
+			fi
+
+			if [ $USERSPACE_LINKER -eq 0 ]; then
+				log 2 "Attempt to use userspace linker to link freestanding binary"
+				if "$LD" -nostdlib $LDFLAGS_TEST -o .entry .entry.o; then
+					LDFLAGS_TEST="-nostdlib $LDFLAGS_TEST"
+					log 2 "OK"
+				else
+					log 2 "FAILED"
+					rm -f .entry.c .entry.o .entry .main.c .main.o .main
+					continue
+				fi
+			fi
+			rm -f .entry.c .entry.o .entry .main.c .main.o .main
 
 			LDFLAGS="$LDFLAGS_TEST"
 			FOUND="yes"
@@ -323,7 +451,6 @@ if [ -z "$AR" ]; then
 				continue
 			fi
 			"$CC" $CFLAGS -c -o .driver.o .driver.c
-			#echo "\"$CC\" $LDFLAGS -L. -o .test .driver.o -ltest"
 			"$LD" $LDFLAGS -L. -o .test .driver.o -ltest
 			TMP=$?
 			rm -f .artest.c .driver.c .artest.o .driver.o libtest.a .test
