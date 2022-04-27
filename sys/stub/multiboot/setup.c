@@ -11,8 +11,8 @@ int init_serial(unsigned short int port);
 void put_serial(unsigned short int port, char c);
 void write_serial(unsigned short int port, const char *str);
 
-void printl(unsigned short int port, long int num);
-void printul(unsigned short int port, unsigned long int num);
+void printl(unsigned short int port, long int num, unsigned char base);
+void printul(unsigned short int port, unsigned long int num, unsigned char base);
 
 void
 setup32(multiboot_info_t *mbd)
@@ -25,46 +25,47 @@ setup32(multiboot_info_t *mbd)
 	//print(mbd->
 	const char *str = (const char *)mbd->boot_loader_name;
 	write_serial(PORT, str);
-	printl(PORT, mbd->mmap_length);
-
+	printl(PORT, mbd->mmap_length, 10);
 }
 
 void
-printl(unsigned short int port, long int num)
+printl(unsigned short int port, long int num, unsigned char base)
 {
-	/*unsigned char n = '0' + (num % 10);
-	num /= 10;
-	if (num > 0) {
-		print(num);
-	}
-	*framebuffer++ = n;
-	*framebuffer++ = 0xf0;*/
 	if (num < 0) {
 		put_serial(port, '-');
 		num *= -1;
 	}
-	printul(port, num);
+	printul(port, num, base);
 }
 
 void
-printul(unsigned short int port, unsigned long int num)
+printul(unsigned short int port, unsigned long int num, unsigned char base)
 {
-	size_t l = 0;
-	unsigned short int c;
+	unsigned char d;
+	long int i, count = 0;
+	unsigned long int mun = 0;
 
-	if (num == 0) {
-		put_serial(port, '0');
-		put_serial(port, '\n');
-		return;
+	/* invert number using mun as digit stack */
+	while (num) {
+		mun += num % base;
+		num /= base;
+		count++;
+		if (num) {
+			mun *= base;
+		}
+	}
+	/* print reverse order digits from mun */
+	for (int i = 0; i < count; i++) {
+		d = mun % base;
+		if (d < 10) {
+			put_serial(port, '0' + d);
+		} else {
+			put_serial(port, 'A' + d);
+		}
+		mun /= base;
 	}
 
-	c = num % 10;
-	num /= 10;
-	if (num) {
-		printul(port, num);
-	}
-
-	//~ put_serial(port, '\n');
+	put_serial(port, '\n');
 }
 
 int
