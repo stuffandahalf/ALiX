@@ -39,7 +39,7 @@
 /* Alignment of the multiboot info structure. */
 #define MULTIBOOT_INFO_ALIGN 0x00000004
 
-/* Flags set in the ’flags’ member of the multiboot header. */
+/* Flags set in the flags member of the multiboot header. */
 
 /* Align all boot modules on i386 page (4KB) boundaries. */
 #define MULTIBOOT_PAGE_ALIGN 0x00000001
@@ -53,7 +53,7 @@
 /* This flag indicates the use of the address fields in the header. */
 #define MULTIBOOT_AOUT_KLUDGE 0x00010000
 
-/* Flags to be set in the ’flags’ member of the multiboot info structure. */
+/* Flags to be set in the flags member of the multiboot info structure. */
 
 /* is there basic lower/upper memory information? */
 #define MULTIBOOT_INFO_MEMORY 0x00000001
@@ -234,7 +234,7 @@ struct multiboot_mmap_entry {
 typedef struct multiboot_mmap_entry multiboot_memory_map_t;
 
 struct multiboot_mod_list {
-	/* the memory used goes from bytes ’mod_start’ to ’mod_end-1’ inclusive */
+	/* the memory used goes from bytes mod_start to mod_end-1 inclusive */
 	multiboot_uint32_t mod_start;
 	multiboot_uint32_t mod_end;
 
