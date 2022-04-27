@@ -35,7 +35,7 @@ _start:
 	pushl %ebx
 	call setup32
 
-	call main
+	;call main
 
 	cli
 	hlt
@@ -43,3 +43,30 @@ _start:
 	jmp 1b
 
 .size _start, . - _start
+
+.global outb
+.type outb, @function
+outb:
+	pushl %ebp
+	movl %esp, %ebp
+
+	movw 8(%ebp), %dx
+	movb 12(%ebp), %al
+	outb %al, %dx
+
+	popl %ebp
+	ret
+.size outb, . - outb
+
+.global inb
+.type inb, @function
+inb:
+	pushl %ebp
+	movl %esp, %ebp
+
+	movw 8(%ebp), %dx
+	inb %dx, %al
+
+	popl %ebp
+	ret
+.size inb, . - inb
