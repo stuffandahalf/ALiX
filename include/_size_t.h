@@ -1,16 +1,19 @@
-#ifndef __SIZE_T_H
-#define __SIZE_T_H 1
-
+#ifndef __SIZE_T
+#define __SIZE_T 1
 #if __STDC_VERSION__ >= 199901L
 typedef unsigned long long int size_t;
-#ifdef __NEED_SSIZE_T
-typedef signed long long int ssize_t;
-#endif /* __NEED_SSIZE_T */
 #else
 typedef unsigned long int size_t;
-#ifdef __NEED_SSIZE_T
-typedef signed long int ssize_t;
-#endif /* __NEED_SSIZE_T */
-#endif
+#endif /* C99 */
+#endif /* __SIZE_T */
 
-#endif /* __SIZE_T_H */
+#ifdef __NEED_SSIZE_T
+#ifndef __SSIZE_T
+#define __SSIZE_T
+#if __STDC_VERSION__ >= 199901L
+typedef long long int ssize_t;
+#else
+typedef long int ssize_t;
+#endif /* C99 */
+#endif /* __SSIZE_T */
+#endif /* __NEED_SSIZE_T */

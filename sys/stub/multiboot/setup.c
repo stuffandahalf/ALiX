@@ -33,6 +33,28 @@ setup32(multiboot_info_t *mbd)
 	}
 }
 
+#define PUSH(T, var) { \
+	long int i; \
+	unsigned short int *v_ptr = (unsigned short int *)&var; \
+	for (i = sizeof(T) / 2 - 1; i >= 0; i--) { \
+		__asm__("pushw %0\n\t" : : "r"(v_ptr[i])); \
+	} \
+}
+
+#define PUSHW(word) __asm__("pushw %0\n\t" : : "r"(word))
+#define PUSHL(longword) __asm__("pushl %0\n\t" : : "r"(longword))
+
+#define POP(T, var) { \
+	long int i; \
+	unsigned short in *v_ptr = (unsigned short int *)&var; \
+	for (i = 0; i < sizeof(T) / 2; i++) { \
+		__asm__("popw %0\n\t") : "=r"(v_ptr[i])); \
+	} \
+}
+
+#define POPW(word) __asm__("popw %0\n\t" : "=r"(word))
+#define POPL(longword) __asm__("popl %0\n\t" : "=r"(longword))
+
 static int
 init_mmap(multiboot_info_t *mbd)
 {
@@ -40,8 +62,7 @@ init_mmap(multiboot_info_t *mbd)
 	size_t entries = 0;
 	unsigned short int *mmap_entry_words;
 	struct multiboot_mmap_entry *mb_mmap;
-	struct mmap_entry blk;
-	extern struct mmap_entry *mmap;
+	struct mmap_entry blk, *mmap;
 
 	if (mbd->flags & MULTIBOOT_INFO_MEM_MAP) {
 		mb_mmap = (void *)mbd->mmap_addr;
@@ -70,20 +91,23 @@ init_mmap(multiboot_info_t *mbd)
 			}
 			if (blk.type) {
 				// store for later
-				mmap_entry_words = (unsigned short int *)&blk;
-				for (j = sizeof(struct mmap_entry) / 2 - 1; j >= 0; j--) {
-					__asm__ (
-						"pushw %0\n\t"
-						:
-						: "r"(mmap_entry_words[j])
-					);
-				}
+				PUSH(struct mmap_entry, blk);
 				entries++;
 			}
 			mb_mmap = ((void *)mb_mmap) + mb_mmap->size + offsetof(struct multiboot_mmap_entry, addr);
 		}
 	} else if (mbd->flags & MULTIBOOT_INFO_MEMORY) {
+		blk.start = (void *)0;
+		blk.length = mbd->mem_lower;
+		blk.type = MEMORY_TYPE_FREE;
+		PUSH(struct mmap_entry, blk);
+		entries++;
 
+		blk.start = (void *)0x100000;
+		blk.length = mbd->mem_upper;
+		blk.type = MEMORY_TYPE_FREE;
+		PUSH(struct mmap_entry, blk);
+		entries++;
 	} else {
 		return 1;
 	}
@@ -94,13 +118,11 @@ init_mmap(multiboot_info_t *mbd)
 		: "=r"(mmap)
 	);
 
-	/* use temporary mmap to allocate permanent location */
-	mmap = kalloc(sizeof(struct mmap_entry) * entries);
-	if (!mmap) {
-		write_serial(PORT, "Failed to allocate memory for mmap");
+	if (init_sysmem(mmap, entries)) {
+		write_serial(PORT, "Failed to initialize system memory map");
 		return 1;
 	}
-
+	write_serial(PORT, "initialized memory map");
 
 
 	/* free temporary mmap */

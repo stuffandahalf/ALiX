@@ -35,6 +35,7 @@ write_serial(unsigned short int port, const char *str)
 	for (c = str; *c != '\0'; c++) {
 		put_serial(port, *c);
 	}
+	put_serial(port, '\r');
 	put_serial(port, '\n');
 }
 
@@ -66,6 +67,7 @@ printul(unsigned short int port, unsigned long int num, unsigned char base)
 		mun /= base;
 	}
 
+	put_serial(port, '\r');
 	put_serial(port, '\n');
 }
 
