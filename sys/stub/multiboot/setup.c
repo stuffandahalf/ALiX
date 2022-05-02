@@ -31,25 +31,35 @@ setup32(multiboot_info_t *mbd)
 		write_serial(PORT, "Failed to initialize memory");
 		return;
 	}
+	write_serial(PORT, "SURVIVED");
 }
 
 #define PUSH(T, var) { \
-	long int i; \
-	unsigned short int *v_ptr = (unsigned short int *)&var; \
-	for (i = sizeof(T) / 2 - 1; i >= 0; i--) { \
-		__asm__("pushw %0\n\t" : : "r"(v_ptr[i])); \
-	} \
+	T *sp; \
+	__asm__( \
+		"subl %1, %%esp\n\t" \
+		"movl %%esp, %0\n\t" \
+		: "=r"(sp) \
+		: "r"(sizeof(T)) \
+	); \
+	*sp = var; \
 }
 
 #define PUSHW(word) __asm__("pushw %0\n\t" : : "r"(word))
 #define PUSHL(longword) __asm__("pushl %0\n\t" : : "r"(longword))
 
 #define POP(T, var) { \
-	long int i; \
-	unsigned short in *v_ptr = (unsigned short int *)&var; \
-	for (i = 0; i < sizeof(T) / 2; i++) { \
-		__asm__("popw %0\n\t") : "=r"(v_ptr[i])); \
-	} \
+	T *sp; \
+	__asm__( \
+		"movl %%esp, %0\n\t" \
+		: "=r"(sp) \
+	); \
+	var = *sp; \
+	__asm__( \
+		"addl %0, %%esp\n\t" \
+		: \
+		: "r"(sizeof(T)) \
+	); \
 }
 
 #define POPW(word) __asm__("popw %0\n\t" : "=r"(word))
@@ -59,7 +69,7 @@ static int
 init_mmap(multiboot_info_t *mbd)
 {
 	long int i, j;
-	size_t entries = 0;
+	size_t entries = 0, mmap_sz;
 	unsigned short int *mmap_entry_words;
 	struct multiboot_mmap_entry *mb_mmap;
 	struct mmap_entry blk, *mmap;
@@ -113,23 +123,34 @@ init_mmap(multiboot_info_t *mbd)
 	}
 
 	/* set current stack pointer as temporary mmap */
-	__asm__ (
+	__asm__(
 		"movl %%esp, %0\n\t"
 		: "=r"(mmap)
 	);
+	mmap_sz = sizeof(struct mmap_entry) * entries;
+
+	/* align stack to 4-byte boundary */
+	if (mmap_sz % sizeof(int)) {
+		__asm__(
+			"subl %0, %%esp\n\t"
+			:
+			: "r"(mmap_sz % sizeof(int))
+		);
+	}
 
 	if (init_sysmem(mmap, entries)) {
 		write_serial(PORT, "Failed to initialize system memory map");
 		return 1;
 	}
-	write_serial(PORT, "initialized memory map");
 
+
+	write_serial(PORT, "initialized memory map");
 
 	/* free temporary mmap */
 	__asm__ (
 		"addl %0, %%esp\n\t"
 		:
-		: "r"(sizeof(struct mmap_entry) * entries)
+		: "r"(mmap_sz + mmap_sz % sizeof(int))
 	);
 
 	return 0;
