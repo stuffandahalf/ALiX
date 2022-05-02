@@ -75,3 +75,7 @@ tools/llvm*
 
 # VS project files
 .vs
+
+# Generated makefiles
+*makefile
+
