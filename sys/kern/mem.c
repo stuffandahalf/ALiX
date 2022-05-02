@@ -1,6 +1,13 @@
 #include <alix/mem.h>
 
-static struct mmap_entry *sys_mmap = NULL;
+/* local constant since NULL is a legal address */
+#define NONE ((void *)-1)
+
+extern void write_serial(unsigned short port, const char *str);
+extern void printul(unsigned short port, unsigned long int num, unsigned char base);
+extern void printl(unsigned short port, unsigned long int num, unsigned char base);
+
+static struct mmap_entry *sys_mmap = NONE;
 static size_t sys_mmap_entries = 0;
 
 static struct memblk *freemem = (void *)-1;
@@ -8,7 +15,7 @@ static struct memblk *freemem = (void *)-1;
 int
 init_sysmem(struct mmap_entry *local_mmap, size_t entries)
 {
-	struct memblk *prev = NULL, *current;
+	struct memblk *prev = NONE, *current;
 	ssize_t i;
 	// TODO: rework this
 	for (i = entries - 1; i >= 0; i--) {
@@ -16,34 +23,30 @@ init_sysmem(struct mmap_entry *local_mmap, size_t entries)
 			continue;
 		}
 		current = local_mmap[i].start;
-		if (current == NULL) {
-			current = (void *)current + sizeof(int);
-			current->length =
-					local_mmap[i].length - sizeof(struct memblk) - sizeof(int);
+		current->length = local_mmap[i].length - sizeof(struct memblk);
+		current->prev = prev;
+		current->next = NONE;
+		if (prev == NONE) {
+			freemem = current;
 		} else {
-			current->length = local_mmap[i].length - sizeof(struct memblk);
+			prev->next = current;
 		}
 
-		if (prev) {
-			current->prev = prev;
-			prev->next = current;
-		} else {
-			current->prev = NULL;
-			freemem = current;
-		}
-		if (!i) {
-			current->next = NULL;
-		} else {
-			prev = current;
-		}
+		prev = current;
+
+		/*if (!i) {
+			current->next = NONE;
+		}*/
 	}
+
 	write_serial(0x3f8, "block address");
 	printul(0x3f8, freemem, 16);
-	for (current = freemem; current != NULL; current = current->next) {
+	for (current = freemem; current != NONE; current = current->next) {
 		write_serial(0x3f8, "loop");
 		printul(0x3f8, current->length, 10);
 	}
-	
+
+	return 1;
 
 	/* use temporary mmap to allocate permanent location */
 	sys_mmap = kalloc(sizeof(struct mmap_entry) * entries);

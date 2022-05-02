@@ -68,6 +68,7 @@ setup32(multiboot_info_t *mbd)
 static int
 init_mmap(multiboot_info_t *mbd)
 {
+	int ret;
 	long int i, j;
 	size_t entries = 0, mmap_sz;
 	unsigned short int *mmap_entry_words;
@@ -82,19 +83,19 @@ init_mmap(multiboot_info_t *mbd)
 			switch (mb_mmap->type) {
 			case MULTIBOOT_MEMORY_AVAILABLE:
 				blk.type = MEMORY_TYPE_FREE;
-				printl(PORT, blk.length, 10);
-				write_serial(PORT, "available bytes");
+				//~ printl(PORT, blk.length, 10);
+				//~ write_serial(PORT, "available bytes");
 				break;
 			case MULTIBOOT_MEMORY_RESERVED:
 			case MULTIBOOT_MEMORY_BADRAM:
-				write_serial(PORT, "unavailable");
+				//~ write_serial(PORT, "unavailable");
 				blk.type = MEMORY_TYPE_UNAVAILABLE;
 				break;
 			case MULTIBOOT_MEMORY_ACPI_RECLAIMABLE:
 				blk.type = MEMORY_TYPE_RECLAIMABLE;
 				break;
 			case MULTIBOOT_MEMORY_NVS:
-				write_serial(PORT, "TODO: Figure out NVS memory type");
+				//~ write_serial(PORT, "TODO: Figure out NVS memory type");
 				break;
 			default:
 				blk.type = 0;
@@ -138,20 +139,19 @@ init_mmap(multiboot_info_t *mbd)
 		);
 	}
 
-	if (init_sysmem(mmap, entries)) {
-		write_serial(PORT, "Failed to initialize system memory map");
-		return 1;
-	}
-
-
-	write_serial(PORT, "initialized memory map");
-
+	ret = init_sysmem(mmap, entries);
 	/* free temporary mmap */
 	__asm__ (
 		"addl %0, %%esp\n\t"
 		:
 		: "r"(mmap_sz + mmap_sz % sizeof(int))
 	);
+	if (ret) {
+		write_serial(PORT, "Failed to initialize system memory map");
+		return 1;
+	}
+
+	write_serial(PORT, "initialized memory map");
 
 	return 0;
 }
