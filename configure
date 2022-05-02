@@ -244,12 +244,14 @@ if [ -z "$CC" ]; then
 					if [ $CC_OUTPUT_COMPATIBLE -eq 0 ]; then
 						CFLAGS_TEST="-m32 $CFLAGS_TEST"
 					fi
-				elif [ "$CC_BRAND" == "clang"] && "$CC" -target=$TARGET_ARCH-none-elf $CFLAGS_TEST -c .filefmt.c; then
+				elif [ "$CC_BRAND" == "clang" ] && "$CC" -target=$TARGET_ARCH-none-elf $CFLAGS_TEST -c .filefmt.c; then
 					test_file_arch .filefmt.o
 					CC_OUTPUT_COMPATIBLE=$?
 					if [ $CC_OUTPUT_COMPATIBLE -eq 0 ]; then
 						CFLAGS_TEST="-target=$TARGET_ARCH-none-elf $CFLAGS_TEST"
 					fi
+				else
+					continue
 				fi
 			fi
 			
@@ -434,7 +436,7 @@ if [ -z "$AR" ]; then
 
 		for CANDIDATE in $AR_CANDIDATES; do
 			AR="$DIR/$CANDIDATE"
-			ARFLAGS_TEST="$ARFLAGS -rv"
+			ARFLAGS_TEST="$ARFLAGS -rvs"
 
 			if [ ! -x "$AR" ]; then
 				continue
