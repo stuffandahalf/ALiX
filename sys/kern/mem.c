@@ -7,7 +7,7 @@ extern void write_serial(unsigned short port, const char *str);
 extern void printul(unsigned short port, unsigned long int num, unsigned char base);
 extern void printl(unsigned short port, unsigned long int num, unsigned char base);
 
-static struct mmap_entry *sys_mmap = NONE;
+static struct mmap_entry *sys_mmap = NULL;
 static size_t sys_mmap_entries = 0;
 
 static struct memblk *freemem = (void *)-1;
@@ -46,8 +46,7 @@ init_sysmem(struct mmap_entry *local_mmap, size_t entries)
 		printul(0x3f8, current->length, 10);
 	}
 
-	return 1;
-
+	sys_mmap = local_mmap;
 	/* use temporary mmap to allocate permanent location */
 	sys_mmap = kalloc(sizeof(struct mmap_entry) * entries);
 	if (!sys_mmap) {
@@ -66,12 +65,14 @@ void *
 kalloc(size_t count)
 {
 	struct memblk *blk, *leftover;
-
-	if (!sys_mmap || freemem != (void *)-1) {
+	printul(0x3f8, sys_mmap, 10);
+	printul(0x3f8, freemem, 16);
+	if (!sys_mmap || freemem != NONE) {
+		write_serial(0x3f8, "NO MMAP OR FREE MEM");
 		return NULL;
 	}
 
-	for (blk = freemem; blk != NULL; blk = blk->next) {
+	for (blk = freemem; blk != NONE; blk = blk->next) {
 		write_serial(0x3f8, "BLOCK");
 		if (blk->length < count) {
 			continue;
