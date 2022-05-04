@@ -17,9 +17,6 @@ init_sysmem(struct mmap_entry *local_mmap, size_t entries)
 {
 	struct memblk *prev = NONE, *current;
 	ssize_t i;
-	write_serial(0x3f8, "This is NONE");
-	printl(0x3f8, NONE, 16);
-	printul(0x3f8, NONE, 16);
 
 	// TODO: rework this
 	for (i = entries - 1; i >= 0; i--) {

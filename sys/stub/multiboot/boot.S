@@ -34,8 +34,9 @@ _start:
 
 	pushl %ebx
 	call setup32
+	popl %ebx
 
-	;call main
+	call main
 
 	cli
 	hlt
