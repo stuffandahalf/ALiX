@@ -57,12 +57,12 @@ printul(unsigned short int port, unsigned long int num, unsigned char base)
 		}
 	} while (num);
 	/* print reverse order digits from mun */
-	for (int i = 0; i < count; i++) {
+	for (i = 0; i < count; i++) {
 		d = mun % base;
 		if (d < 10) {
 			put_serial(port, '0' + d);
 		} else {
-			put_serial(port, 'A' + d);
+			put_serial(port, 'A' + d - 10);
 		}
 		mun /= base;
 	}

@@ -10,13 +10,17 @@ extern void printl(unsigned short port, unsigned long int num, unsigned char bas
 static struct mmap_entry *sys_mmap = NULL;
 static size_t sys_mmap_entries = 0;
 
-static struct memblk *freemem = (void *)-1;
+static struct memblk *freemem = NONE;
 
 int
 init_sysmem(struct mmap_entry *local_mmap, size_t entries)
 {
 	struct memblk *prev = NONE, *current;
 	ssize_t i;
+	write_serial(0x3f8, "This is NONE");
+	printl(0x3f8, NONE, 16);
+	printul(0x3f8, NONE, 16);
+
 	// TODO: rework this
 	for (i = entries - 1; i >= 0; i--) {
 		if (local_mmap[i].type != MEMORY_TYPE_FREE) {
@@ -33,17 +37,6 @@ init_sysmem(struct mmap_entry *local_mmap, size_t entries)
 		}
 
 		prev = current;
-
-		/*if (!i) {
-			current->next = NONE;
-		}*/
-	}
-
-	write_serial(0x3f8, "block address");
-	printul(0x3f8, freemem, 16);
-	for (current = freemem; current != NONE; current = current->next) {
-		write_serial(0x3f8, "loop");
-		printul(0x3f8, current->length, 10);
 	}
 
 	sys_mmap = local_mmap;
@@ -65,15 +58,11 @@ void *
 kalloc(size_t count)
 {
 	struct memblk *blk, *leftover;
-	printul(0x3f8, sys_mmap, 10);
-	printul(0x3f8, freemem, 16);
-	if (!sys_mmap || freemem != NONE) {
-		write_serial(0x3f8, "NO MMAP OR FREE MEM");
+	if (!sys_mmap || freemem == NONE) {
 		return NULL;
 	}
 
 	for (blk = freemem; blk != NONE; blk = blk->next) {
-		write_serial(0x3f8, "BLOCK");
 		if (blk->length < count) {
 			continue;
 		}
