@@ -1,5 +1,5 @@
-#ifndef ALIX_REGEX_H
-#define ALIX_REGEX_H
+#ifndef __ALIX_LIBC_REGEX_H
+#define __ALIX_LIBC_REGEX_H 1
 
 #include "_std.h"
 
@@ -44,4 +44,4 @@ extern size_t regerror(int, const regex_t *RESTRICT, char *RESTRICT, size_t);
 extern int regexec(const regex_t *RESTRICT, const char *RESTRICT, size_t, regmatch_t[RESTRICT], int);
 void regfree(regex_t *);
 
-#endif
+#endif /* __ALIX_REGEX_H */

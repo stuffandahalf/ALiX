@@ -1,5 +1,5 @@
-#ifndef _ALIX_LIBC_MATH_H
-#define _ALIX_LIBC_MATH_H
+#ifndef __ALIX_LIBC_MATH_H
+#define __ALIX_LIBC_MATH_H 1
 
 #if !FLT_EVAL_METHOD
 typedef float		float_t;
@@ -36,5 +36,5 @@ float		atanhf(float);
 long double	atanhl(long double);
 long double	atanl(long double);
 
-#endif /* _ALIX_LIBC_MATH_H */
+#endif /* _ALIX_LIBC_MATH_H 1 */
 

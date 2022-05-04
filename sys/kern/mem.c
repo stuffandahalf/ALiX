@@ -12,6 +12,8 @@ static size_t sys_mmap_entries = 0;
 
 static struct memblk *freemem = NONE;
 
+extern void *kernel_bottom, *kernel_top;
+
 int
 init_sysmem(struct mmap_entry *local_mmap, size_t entries)
 {
@@ -25,6 +27,9 @@ init_sysmem(struct mmap_entry *local_mmap, size_t entries)
 		}
 		current = local_mmap[i].start;
 		current->length = local_mmap[i].length - sizeof(struct memblk);
+		if (local_mmap[i].start <= kernel_bottom && kernel_top <= local_mmap[i].length) {
+			write_serial(0x3f8, "kernel within mmap");
+		}
 		current->prev = prev;
 		current->next = NONE;
 		if (prev == NONE) {
