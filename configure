@@ -523,7 +523,7 @@ fi
 
 SUBDIR_TARGETS=
 for SUBDIR in $SUBDIRS; do
-	SUBDIR_TARGETS="$SUBDIR_TARGETS $SUBDIR.dir"
+	SUBDIR_TARGETS="$SUBDIR.dir $SUBDIR_TARGETS"
 done
 
 log 0 "CREATING $DIR$OUT_MAKEFILE"
@@ -543,7 +543,7 @@ emit "\n"
 emit "all: subdirs $TARGETS `staticlib_fname $STATIC_LIB_TARGETS` `dynlib_fname $DYNAMIC_LIB_TARGETS`\n"
 emit "\n"
 emit "subdirs: $SUBDIR_TARGETS"
-emit "\n"
+emit "\n\n"
 for SUBDIR in $SUBDIRS; do
 	emit "$SUBDIR.dir: $SUBDIR\n"
 	emit "\tcd \"$SUBDIR\" && \$(MAKE) all\n"
@@ -570,7 +570,7 @@ for TARGET in $TARGETS; do
 	for LIB in $TARGET_LIBS; do
 		emit " -l$LIB"
 	done
-	emit "\n"
+	emit "\n\n"
 	emit_target_deps $TARGET_SOURCES
 done
 for STATIC_LIB in $STATIC_LIB_TARGETS; do
@@ -618,4 +618,3 @@ for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 	emit "\trm -f `dynlib_fname $DYNAMIC_LIB`\n"
 done
 emit "\n"
-
