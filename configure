@@ -84,6 +84,12 @@ test_file_arch() {
 	return 1
 }
 
+var_name() {
+	for F in $@; do
+		echo "$F" | sed -e "s/[^a-zA-Z0-9_]/_/"
+	done
+}
+
 # Build Variables
 IN_MAKEFILE=make.conf
 IN_PREDEF_MAKEFILE=make.predef.conf
@@ -111,14 +117,14 @@ if [ -z "$CONFIGURED" ]; then
 	export KERNEL_FORMAT
 
 	while getopts 'A:B:F:vh' opt; do
-	    case $opt in
-	        (A) TARGET_ARCH=$OPTARG;;
-	        (B) BUILD_DIR=$OPTARG;;
-	        (F) KERNEL_FORMAT=$OPTARG;;
-	        (v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
-	        (h) usage "$0"; exit 1;;
+			case $opt in
+					(A) TARGET_ARCH=$OPTARG;;
+					(B) BUILD_DIR=$OPTARG;;
+					(F) KERNEL_FORMAT=$OPTARG;;
+					(v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
+					(h) usage "$0"; exit 1;;
 			(?) usage "$0" >&2; exit 1;;
-	    esac
+			esac
 	done
 
 	# check that selected arch is legal and set preferred name
@@ -186,7 +192,7 @@ if [ -z "$CC" ]; then
 			# check if compiler automatically imports headers
 			log 1 "Checking if C compiler provides stdlib headers..."
 			printf "#include <stdio.h>\n" > .stdinc.c
-			"$CC" $CFLAGS_TEST -c .stdinc.c #2> /dev/null
+			"$CC" $CFLAGS_TEST -c .stdinc.c 2> /dev/null
 			TMP=$?
 			if [ $TMP -eq 0 ]; then
 				case "$CC_BRAND" in
@@ -551,17 +557,18 @@ for SUBDIR in $SUBDIRS; do
 done
 for TARGET in $TARGETS; do
 	# evaluate target variables
-	eval "EXTRA_DEPS=\${${TARGET}_EXTRA_DEPENDENCIES}"
-	eval "TARGET_SOURCES=\${${TARGET}_SOURCES}"
-	eval "TARGET_CFLAGS=\${${TARGET}_CFLAGS}"
-	eval "TARGET_LDFLAGS=\${${TARGET}_LDFLAGS}"
-	eval "TARGET_LIBS=\${${TARGET}_LIBS}"
-	eval "LIB_LOOKUP_DIRS=\${${TARGET}_LIB_LOOKUP_DIRS}"
+	TARGET_VAR=`var_name $TARGET`
+	eval "TARGET_EXTRA_DEPS=\${${TARGET_VAR}_EXTRA_DEPENDENCIES}"
+	eval "TARGET_SOURCES=\${${TARGET_VAR}_SOURCES}"
+	eval "TARGET_CFLAGS=\${${TARGET_VAR}_CFLAGS}"
+	eval "TARGET_LDFLAGS=\${${TARGET_VAR}_LDFLAGS}"
+	eval "TARGET_LIBS=\${${TARGET_VAR}_LIBS}"
+	eval "LIB_LOOKUP_DIRS=\${${TARGET_VAR}_LIB_LOOKUP_DIRS}"
 	OBJECTS="`src2obj $TARGET_SOURCES`"
 	#BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
-	emit "$TARGET: subdirs $TARGET_LIBS $OBJECTS $EXTRA_DEPS\n"
+	emit "$TARGET: subdirs $TARGET_LIBS $OBJECTS $TARGET_EXTRA_DEPS\n"
 	emit "\t\"${LD}\" $LDFLAGS $TARGET_LDFLAGS"
 	for LIB_LOOKUP_DIR in $LIB_LOOKUP_DIRS; do
 		emit " -L$LIB_LOOKUP_DIR"
@@ -575,9 +582,10 @@ for TARGET in $TARGETS; do
 done
 for STATIC_LIB in $STATIC_LIB_TARGETS; do
 	# evaluate library variables
-	eval "TARGET_SOURCES=\${${STATIC_LIB}_SOURCES}"
-	eval "TARGET_CFLAGS=\${${STATIC_LIB}_CFLAGS}"
-	eval "TARGET_ARFLAGS=\${${STATIC_LIB}_ARFLAGS}"
+	TARGET_VAR=`var_name "$STATIC_LIB"`
+	eval "TARGET_SOURCES=\${${TARGET_VAR}_SOURCES}"
+	eval "TARGET_CFLAGS=\${${TARGET_VAR}_CFLAGS}"
+	eval "TARGET_ARFLAGS=\${${TARGET_VAR}_ARFLAGS}"
 	OBJECTS="`src2obj $TARGET_SOURCES`"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
@@ -589,9 +597,10 @@ for STATIC_LIB in $STATIC_LIB_TARGETS; do
 done
 for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 	# evaluate library variables
-	eval "TARGET_SOURCES=\${${DYNAMIC_LIB}_SOURCES}"
-	eval "TARGET_CFLAGS=\${${DYNAMIC_LIB}_CFLAGS}"
-	eval "TARGET_LDFLAGS=\${${DYNAMIC_LIB}_LDFLAGS}"
+	TARGET_VAR=`var_name "$DYNAMIC_LIB"`
+	eval "TARGET_SOURCES=\${${TARGET_VAR}_SOURCES}"
+	eval "TARGET_CFLAGS=\${${TARGET_VAR}_CFLAGS}"
+	eval "TARGET_LDFLAGS=\${${TARGET_VAR}_LDFLAGS}"
 	OBJECTS="`src2obj $TARGET_SOURCES`"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
