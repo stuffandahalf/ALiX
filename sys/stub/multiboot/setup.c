@@ -7,12 +7,12 @@
 
 #define PORT 0x3f8
 
-extern int init_serial(unsigned short int port);
-extern void put_serial(unsigned short int port, char c);
-extern void write_serial(unsigned short int port, const char *str);
+extern int init_serial(uint16_t port);
+extern void put_serial(uint16_t port, uint8_t c);
+extern void write_serial(uint16_t port, const char *str);
 
-extern void printl(unsigned short int port, long int num, unsigned char base);
-extern void printul(unsigned short int port, unsigned long int num, unsigned char base);
+extern void printl(uint16_t port, int32_t num, uint8_t base);
+extern void printul(uint16_t port, uint32_t num, uint8_t base);
 
 static int init_mmap(struct multiboot_info *mbd);
 

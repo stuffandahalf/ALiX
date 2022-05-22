@@ -1,8 +1,10 @@
-extern unsigned char inb(unsigned short int port);
-extern void outb(unsigned short int port, unsigned char byte);
+#include <stdint.h>
+
+extern uint8_t inb(uint16_t port);
+extern void outb(uint16_t port, uint8_t byte);
 
 int
-init_serial(unsigned short int port)
+init_serial(uint16_t port)
 {
 	outb(port + 1, 0x00);
 	outb(port + 3, 0x80);
@@ -22,14 +24,14 @@ init_serial(unsigned short int port)
 }
 
 void
-put_serial(unsigned short int port, char c)
+put_serial(uint16_t port, char c)
 {
 	while (!(inb(port + 5) & 0x20));
 	outb(port, c);
 }
 
 void
-write_serial(unsigned short int port, const char *str)
+write_serial(uint16_t port, const char *str)
 {
 	const char *c;
 	for (c = str; *c != '\0'; c++) {
@@ -40,7 +42,7 @@ write_serial(unsigned short int port, const char *str)
 }
 
 void
-printul(unsigned short int port, unsigned long int num, unsigned char base)
+printul(uint16_t port, uint32_t num, uint8_t base)
 {
 	unsigned char d;
 	long int i, count = 0;
@@ -72,7 +74,7 @@ printul(unsigned short int port, unsigned long int num, unsigned char base)
 }
 
 void
-printl(unsigned short int port, long int num, unsigned char base)
+printl(uint16_t port, int32_t num, uint8_t base)
 {
 	if (num < 0) {
 		put_serial(port, '-');

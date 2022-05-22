@@ -359,7 +359,7 @@ typedef unsigned long int uint_fast64_t;
 #ifndef INT64_TYPES_DEFINED
 #define INT64_TYPES_DEFINED 1
 typedef signed long long int int64_t;
-typedef unsigned long long int uin64_t;
+typedef unsigned long long int uint64_t;
 typedef signed long long int int_least64_t;
 typedef unsigned long long int uint_least64_t;
 typedef signed long long int int_fast64_t;
