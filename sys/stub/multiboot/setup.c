@@ -3,6 +3,7 @@
 //#include <alix/x86/bios.h>
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define PORT 0x3f8
 
@@ -32,6 +33,10 @@ setup32(multiboot_info_t *mbd)
 		return;
 	}
 	write_serial(PORT, "SURVIVED");
+
+	printl(PORT, INTN_MIN(8), 10);
+	printul(PORT, INTN_MAX(8), 10);
+	printul(PORT, UINTN_MAX(8), 10);
 }
 
 #define PUSH(T, var) { \
