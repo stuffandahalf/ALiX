@@ -97,11 +97,13 @@ OUT_MAKEFILE=makefile
 REQUIRED_C_STANDARD=1
 export REQUIRED_C_STANDARD
 
-SUPPORTED_ARCHS="i386 amd64 ppc ppc64"
+SUPPORTED_ARCHS="i386 amd64 ppc ppc64 arm32 aarch64"
 i386_ALTNAMES="i386 i486 i586 i686 i86pc 80386 80486 80586 80686"
 amd64_ALTNAMES="amd64 x86_64 x86-64"
 ppc_ALTNAMES="ppc powerpc"
 ppc64_ALTNAMES="ppc64 powerpc"
+arm32_ALTNAMES="arm32 arm armv6"
+aarch64_ALTNAMES="aarch64 arm64"
 
 i386_COMPATIBLE_TOOLCHAINS=amd64
 ppc_COMPATIBLE_TOOLCHAINS=ppc64
@@ -117,25 +119,32 @@ if [ -z "$CONFIGURED" ]; then
 	export KERNEL_FORMAT
 
 	while getopts 'A:B:F:vh' opt; do
-			case $opt in
-					(A) TARGET_ARCH=$OPTARG;;
-					(B) BUILD_DIR=$OPTARG;;
-					(F) KERNEL_FORMAT=$OPTARG;;
-					(v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
-					(h) usage "$0"; exit 1;;
+		case $opt in
+			(A)
+				ARCH_ARG=$OPTARG
+				TARGET_ARCH=
+				;;
+			(B) BUILD_DIR=$OPTARG;;
+			(F) KERNEL_FORMAT=$OPTARG;;
+			(v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
+			(h) usage "$0"; exit 1;;
 			(?) usage "$0" >&2; exit 1;;
-			esac
+		esac
 	done
 
 	# check that selected arch is legal and set preferred name
 	for ARCH in $SUPPORTED_ARCHS; do
 		eval "ALTNAMES=\$${ARCH}_ALTNAMES"
 		for ALTNAME in $ALTNAMES; do
-			if [ "$TARGET_ARCH" = "$ALTNAME" ]; then
+			if [ "$ARCH_ARG" = "$ALTNAME" ]; then
 				TARGET_ARCH="$ARCH"
 			fi
 		done
 	done
+	if [ -z "$TARGET_ARCH" ]; then
+		log 0 "Unsupported architecture \"$ARCH_ARG\""
+		exit 1
+	fi
 	log 0 "TARGETING $TARGET_ARCH"
 
 	CONFIGURED=1
@@ -184,7 +193,7 @@ if [ -z "$CC" ]; then
 				CC_BRAND=clang
 			elif "$CC" $CFLAGS_TEST -v 2>&1 | grep -i "gcc" > /dev/null; then
 				CC_BRAND=gcc
-			elif [ "$CC" = "c99" ]; then
+			elif [ `basename "$CC"` = "c99" ]; then
 				CC_BRAND=posix
 			fi
 			log 1 "$CC_BRAND"
@@ -233,7 +242,7 @@ if [ -z "$CC" ]; then
 			if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
 				rm -f .filefmt.c .filefmt.o
 				log 1 "FAILED"
-				break
+				continue
 			fi
 			log 1 "OK"
 
