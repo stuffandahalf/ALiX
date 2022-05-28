@@ -38,7 +38,12 @@ emit() {
 }
 
 path_dirs() {
-	echo "$PATH" | sed -e "s/:/\n/g"
+	if [ "$1" ]; then
+		PATHS="$1"
+	else
+		PATHS="$PATH"
+	fi
+	echo "$PATHS" | sed -e "s/:/\n/g"
 }
 
 src2obj() {
@@ -171,9 +176,15 @@ for TC_ARCH in $TOOLCHAIN_ARCHS; do
 done
 
 # determine CC
-if [ -z "$CC" ]; then
+if [ -z "$CC_FOUND" ]; then
+	if [ "$CC" ]; then
+		CC_CANDIDATES=`basename \`which "$CC"\``
+		CC_CANDIDATE_PATHS=`dirname \`which "$CC"\``
+	else
+		CC_CANDIDATE_PATHS="$PATHS"
+	fi
 	FOUND=""
-	for DIR in `path_dirs`; do
+	for DIR in `path_dirs "$CC_CANDIDATE_PATHS"`; do
 		if [ ! -z "$FOUND" ]; then
 			break
 		fi
@@ -301,18 +312,23 @@ if [ -z "$CC" ]; then
 		exit 1
 	fi
 
+	CC_FOUND=1
+	export CC_FOUND
 	export CC
 	export CFLAGS
 fi
 
-#echo "CFLAGS=$CFLAGS"
-#LD_CANDIDATES="$CC $LD_CANDIDATES"
-
 # determine LD
-if [ -z "$LD" ]; then
+if [ -z "$LD_FOUND" ]; then
+	if [ $LD ]; then
+		LD_CANDIDATES=`basename \`which "$LD"\``
+		LD_PATHS=`dirname \`which $LD\``
+	else
+		LD_PATHS="$PATHS"
+	fi
 	FOUND=""
 
-	for DIR in `path_dirs`; do
+	for DIR in `path_dirs $LD_PATHS`; do
 		if [ ! -z "$FOUND" ]; then
 			break
 		fi
@@ -433,7 +449,9 @@ if [ -z "$LD" ]; then
 		log 0 "Failed to locate compatible LD"
 		exit 1
 	fi
-
+	
+	LD_FOUND=1
+	export LD_FOUND
 	export LD
 	export LDFLAGS
 fi
