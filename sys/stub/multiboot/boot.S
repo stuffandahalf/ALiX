@@ -40,6 +40,30 @@ _start:
 	jmp 1b
 
 .size _start, . - _start
+/*
+gdtr:
+	.word 0
+	.long 0
+
+gdt_start:
+null:
+	.long 0, 0
+code:
+	.word 0xffff
+	.word 0x0000
+	.byte 0x00
+	.byte 0x9a
+	.byte 0b11001111
+	.byte 0x00
+data:
+	.word 0xffff
+	.word 0x0000
+	.byte 0x00
+	.byte 0x92
+	.byte 0b11001111
+	.byte 0x00
+gdt_end:
+*/
 
 .global outb
 .type outb, @function

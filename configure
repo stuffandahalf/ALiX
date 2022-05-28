@@ -269,7 +269,7 @@ if [ -z "$CC" ]; then
 					continue
 				fi
 			fi
-			
+
 			rm -f .filefmt.c .filefmt.o
 			if [ $CC_OUTPUT_COMPATIBLE -ne 0 ]; then
 				log 1 "FAILED"
@@ -332,7 +332,7 @@ if [ -z "$LD" ]; then
 			# run tests
 			echo "void _start(void) { }" > .entry.c
 			echo "extern int puts(const char *); int main(int argc, char **argv) {puts(\"Hello World!\");}" > .main.c
-			
+
 			#"$CC" $CFLAGS -c .entry.c
 			#"$CC" $CFLAGS -c .main.c
 			#log 2 "Attempting clean link"
@@ -355,7 +355,7 @@ if [ -z "$LD" ]; then
 				log 2 "FAILED"
 				USERSPACE_LINKER=1
 			fi
-			
+
 			"$CC" $CFLAGS -c .entry.c
 			"$CC" $CFLAGS -c .main.c
 

@@ -41,7 +41,7 @@ setup32(multiboot_info_t *mbd)
 
 #define PUSH(T, var) { \
 	T *sp; \
-	__asm__( \
+	__asm__ __volatile__ ( \
 		"subl %1, %%esp\n\t" \
 		"movl %%esp, %0\n\t" \
 		: "=r"(sp) \
@@ -55,12 +55,12 @@ setup32(multiboot_info_t *mbd)
 
 #define POP(T, var) { \
 	T *sp; \
-	__asm__( \
+	__asm__ __volatile__ ( \
 		"movl %%esp, %0\n\t" \
 		: "=r"(sp) \
 	); \
 	var = *sp; \
-	__asm__( \
+	__asm__ __volatile__ ( \
 		"addl %0, %%esp\n\t" \
 		: \
 		: "r"(sizeof(T)) \
@@ -136,8 +136,8 @@ init_mmap(multiboot_info_t *mbd)
 	mmap_sz = sizeof(struct mmap_entry) * entries;
 
 	/* align stack to 4-byte boundary */
-	if (mmap_sz % sizeof(int)) {
-		__asm__(
+	if (mmap_sz % sizeof(uint32_t)) {
+		__asm__ __volatile__ (
 			"subl %0, %%esp\n\t"
 			:
 			: "r"(mmap_sz % sizeof(int))
@@ -146,7 +146,7 @@ init_mmap(multiboot_info_t *mbd)
 
 	ret = init_sysmem(mmap, entries);
 	/* free temporary mmap */
-	__asm__ (
+	__asm__ __volatile__ (
 		"addl %0, %%esp\n\t"
 		:
 		: "r"(mmap_sz + mmap_sz % sizeof(int))
