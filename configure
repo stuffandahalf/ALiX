@@ -251,9 +251,18 @@ if [ -z "$CC_FOUND" ]; then
 			EXPECTED_ELF_MAGIC=`printf '\177ELF'`
 			ACTUAL_ELF_MAGIC=`head -c 4 .filefmt.o`
 			if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
-				rm -f .filefmt.c .filefmt.o
-				log 1 "FAILED"
-				continue
+				if [ "$CC_BRAND" = "clang" ] && "$CC" --target=$TARGET_ARCH-none-elf $CFLAGS_TEST -c .filefmt.c; then
+					ACTUAL_ELF_MAGIC=`head -c 4 .filefmt.o`
+					if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
+						rm -f .filefmt.c .filefmt.o
+						log 1 "FAILED"
+						continue
+					fi
+				else
+					rm -f .filefmt.c .filefmt.o
+					log 1 "FAILED"
+					continue
+				fi
 			fi
 			log 1 "OK"
 
@@ -347,7 +356,7 @@ if [ -z "$LD_FOUND" ]; then
 
 			# run tests
 			echo "void _start(void) { }" > .entry.c
-			echo "extern int puts(const char *); int main(int argc, char **argv) {puts(\"Hello World!\");}" > .main.c
+			echo "extern int puts(const char *); int main(int argc, char **argv) {puts(\"Hello World!\");return 0;}" > .main.c
 
 			#"$CC" $CFLAGS -c .entry.c
 			#"$CC" $CFLAGS -c .main.c
