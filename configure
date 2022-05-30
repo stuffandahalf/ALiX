@@ -178,8 +178,8 @@ done
 # determine CC
 if [ -z "$CC_FOUND" ]; then
 	if [ "$CC" ]; then
-		CC_CANDIDATES=`basename \`which "$CC"\``
-		CC_CANDIDATE_PATHS=`dirname \`which "$CC"\``
+		CC_CANDIDATES="`basename \`which "$CC"\``"
+		CC_CANDIDATE_PATHS="`dirname \`which "$CC"\``"
 	else
 		CC_CANDIDATE_PATHS="$PATHS"
 	fi
@@ -330,8 +330,8 @@ fi
 # determine LD
 if [ -z "$LD_FOUND" ]; then
 	if [ $LD ]; then
-		LD_CANDIDATES=`basename \`which "$LD"\``
-		LD_PATHS=`dirname \`which $LD\``
+		LD_CANDIDATES="`basename \`which "$LD"\``"
+		LD_PATHS="`dirname \`which $LD\``"
 	else
 		LD_PATHS="$PATHS"
 	fi
@@ -466,10 +466,16 @@ if [ -z "$LD_FOUND" ]; then
 fi
 
 # determine AR
-if [ -z "$AR" ]; then
+if [ -z "$AR_FOUND" ]; then
+	if [ "$AR" ]; then
+		AR_CANDIDATES="`basename \`which "$AR"\``"
+		AR_PATHS="`dirname \`which "$AR"\``"
+	else
+		AR_PATHS="$PATHS"
+	fi
 	FOUND=""
 
-	for DIR in `path_dirs`; do
+	for DIR in `path_dirs "$AR_PATHS"`; do
 		if [ ! -z "$FOUND" ]; then
 			break
 		fi
@@ -518,6 +524,8 @@ if [ -z "$AR" ]; then
 		exit 1
 	fi
 
+	AR_FOUND=1
+	export AR_FOUND
 	export AR
 	export ARFLAGS
 fi
