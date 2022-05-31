@@ -273,27 +273,25 @@ if [ -z "$CC_FOUND" ]; then
 			CC_OUTPUT_COMPATIBLE=$?
 
 			if [ $CC_OUTPUT_COMPATIBLE -ne 0 ]; then
-				if "$CC" -m32 $CFLAGS_TEST -c .filefmt.c; then
-					test_file_arch .filefmt.o
-					CC_OUTPUT_COMPATIBLE=$?
+				if "$CC" -m32 $CFLAGS_TEST -c .filefmt.c && test_file_arch .filefmt.o; then
+					CC_OUTPUT_COMPATIBLE=0
 					if [ $CC_OUTPUT_COMPATIBLE -eq 0 ]; then
 						CFLAGS_TEST="-m32 $CFLAGS_TEST"
 					fi
-				elif [ "$CC_BRAND" == "clang" ] && "$CC" -target=$TARGET_ARCH-none-elf $CFLAGS_TEST -c .filefmt.c; then
-					test_file_arch .filefmt.o
-					CC_OUTPUT_COMPATIBLE=$?
+				elif [ "$CC_BRAND" == "clang" ] && \
+						"$CC" --target=$TARGET_ARCH-none-elf $CFLAGS_TEST -c .filefmt.c && \
+						test_file_arch .filefmt.o; then
+					CC_OUTPUT_COMPATIBLE=0
 					if [ $CC_OUTPUT_COMPATIBLE -eq 0 ]; then
-						CFLAGS_TEST="-target=$TARGET_ARCH-none-elf $CFLAGS_TEST"
+						CFLAGS_TEST="--target=$TARGET_ARCH-none-elf $CFLAGS_TEST"
 					fi
-				else
-					continue
 				fi
 			fi
 
 			rm -f .filefmt.c .filefmt.o
 			if [ $CC_OUTPUT_COMPATIBLE -ne 0 ]; then
 				log 1 "FAILED"
-				break
+				continue
 			fi
 			log 1 "OK"
 
@@ -458,7 +456,7 @@ if [ -z "$LD_FOUND" ]; then
 		log 0 "Failed to locate compatible LD"
 		exit 1
 	fi
-	
+
 	LD_FOUND=1
 	export LD_FOUND
 	export LD
