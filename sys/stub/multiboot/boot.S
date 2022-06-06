@@ -65,7 +65,7 @@ data:
 gdt_end:
 */
 
-.global outb
+/*.global outb
 .type outb, @function
 outb:
 	pushl %ebp
@@ -90,4 +90,4 @@ inb:
 
 	popl %ebp
 	ret
-.size inb, . - inb
+.size inb, . - inb*/
