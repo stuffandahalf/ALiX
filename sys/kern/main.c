@@ -1,5 +1,7 @@
 unsigned char *const framebuffer = (unsigned char *)0xb8000;
 
+
+
 void
 main(void)
 {
@@ -10,4 +12,10 @@ main(void)
 		framebuffer[i++] = *c;
 		framebuffer[i++] = 0xf0;
 	}
+
+	/* enumerate/initialize available devices */
+	/* ensure interrupts are set up */
+	/* mount root device */
+	/* mount devtab? */
+	/* fork/exec /bin/init */
 }

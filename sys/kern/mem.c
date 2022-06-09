@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <alix/mem.h>
 
 /* local constant since NULL is a legal address */
@@ -27,7 +28,8 @@ init_sysmem(struct mmap_entry *local_mmap, size_t entries)
 		}
 		current = local_mmap[i].start;
 		current->length = local_mmap[i].length - sizeof(struct memblk);
-		if (local_mmap[i].start <= kernel_bottom && kernel_top <= local_mmap[i].length) {
+		if ((uintptr_t)local_mmap[i].start <= (uintptr_t)kernel_bottom &&
+				(uintptr_t)kernel_top <= (uintptr_t)local_mmap[i].length) {
 			write_serial(0x3f8, "kernel within mmap");
 		}
 		current->prev = prev;
