@@ -1,33 +1,32 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <alix/bus.h>
+#include <alix/dev.h>
+#include <alix/device.h>
 
-extern uint8_t inb(uint16_t port);
-extern void outb(uint16_t port, uint8_t byte);
+extern struct dev ns8250;
+extern struct bus x86_ioport;
+
+struct device early_console = {
+	NULL,
+	0x3f8,
+	&x86_ioport,
+	&ns8250,
+	NULL
+};
 
 int
 init_serial(uint16_t port)
 {
-	outb(port + 1, 0x00);
-	outb(port + 3, 0x80);
-	outb(port + 0, 0x03);
-	outb(port + 1, 0x00);
-	outb(port + 3, 0x03);
-	outb(port + 2, 0xc7);
-	outb(port + 4, 0x0b);
-	outb(port + 4, 0x1e);
-
-	outb(port + 0, 0xae);
-	if (inb(port + 0) != 0xae) {
-		return 1;
-	}
-	outb(port + 4, 0x0f);
-	return 0;
+	return ns8250.open(&early_console, 0);
 }
 
 void
 put_serial(uint16_t port, char c)
 {
-	while (!(inb(port + 5) & 0x20));
-	outb(port, c);
+	//~ while (!(inb(port + 5) & 0x20));
+	//~ outb(port, c);
+	early_console.driver->write(&early_console, c);
 }
 
 void
