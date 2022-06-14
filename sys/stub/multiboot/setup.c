@@ -39,6 +39,7 @@ setup32(multiboot_info_t *mbd)
 	printul(PORT, UINTN_MAX(8), 10);
 }
 
+
 #define PUSH(T, var) { \
 	T *sp; \
 	__asm__ __volatile__ ( \
@@ -50,8 +51,8 @@ setup32(multiboot_info_t *mbd)
 	*sp = var; \
 }
 
-#define PUSHW(word) __asm__("pushw %0\n\t" : : "r"(word))
-#define PUSHL(longword) __asm__("pushl %0\n\t" : : "r"(longword))
+#define PUSHW(word) __asm__ __volatile__ ("pushw %0\n\t" : : "r"(word))
+#define PUSHL(longword) __asm__ __volatile__ ("pushl %0\n\t" : : "r"(longword))
 
 #define POP(T, var) { \
 	T *sp; \
@@ -66,7 +67,6 @@ setup32(multiboot_info_t *mbd)
 		: "r"(sizeof(T)) \
 	); \
 }
-
 #define POPW(word) __asm__("popw %0\n\t" : "=r"(word))
 #define POPL(longword) __asm__("popl %0\n\t" : "=r"(longword))
 
@@ -75,6 +75,7 @@ init_mmap(multiboot_info_t *mbd)
 {
 	int ret;
 	long int i, j;
+	uintptr_t adjust;
 	size_t entries = 0, mmap_sz;
 	unsigned short int *mmap_entry_words;
 	struct multiboot_mmap_entry *mb_mmap;
@@ -129,18 +130,18 @@ init_mmap(multiboot_info_t *mbd)
 	}
 
 	/* set current stack pointer as temporary mmap */
-	__asm__(
+	__asm__ __volatile__ (
 		"movl %%esp, %0\n\t"
 		: "=r"(mmap)
 	);
 	mmap_sz = sizeof(struct mmap_entry) * entries;
 
 	/* align stack to 4-byte boundary */
-	if (mmap_sz % sizeof(uint32_t)) {
+	if ((adjust = mmap_sz % sizeof(uint32_t))) {
 		__asm__ __volatile__ (
 			"subl %0, %%esp\n\t"
 			:
-			: "r"(mmap_sz % sizeof(int))
+			: "m"(adjust)
 		);
 	}
 
@@ -149,7 +150,7 @@ init_mmap(multiboot_info_t *mbd)
 	__asm__ __volatile__ (
 		"addl %0, %%esp\n\t"
 		:
-		: "r"(mmap_sz + mmap_sz % sizeof(int))
+		: "r"((uintptr_t)mmap_sz + adjust)
 	);
 	if (ret) {
 		write_serial(PORT, "Failed to initialize system memory map");
