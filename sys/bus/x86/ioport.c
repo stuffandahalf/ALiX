@@ -4,7 +4,7 @@
 #include <alix/bus.h>
 
 static int x86_io_send(bus_target_t target, int size, ...);
-static int x86_io_receive(bus_target_t target, void *response);
+static int x86_io_receive(bus_target_t target, int size, ...);
 
 struct bus x86_ioport = {
 	NULL,
@@ -112,7 +112,35 @@ x86_io_send(bus_target_t target, int size, ...)
 }
 
 static int
-x86_io_receive(bus_target_t target, void *response)
+x86_io_receive(bus_target_t target, int size, ...)
 {
+	int exit = 0;
+	union {
+		uint32_t *u32;
+		uint16_t *u16;
+		uint8_t *u8;
+		void *ptr;
+	} response;
+	va_list args;
 
+	va_start(args, size);
+
+	response.ptr = va_arg(args, void *);
+
+	switch (size) {
+	case BUS_PAYLOAD_SIZE_8:
+		*response.u8 = inb(target);
+		break;
+	case BUS_PAYLOAD_SIZE_16:
+		*response.u16 = inw(target);
+		break;
+	case BUS_PAYLOAD_SIZE_32:
+		*response.u32 = inl(target);
+		break;
+	default:
+		exit = 1;
+	}
+
+	va_end(args);
+	return exit;
 }
