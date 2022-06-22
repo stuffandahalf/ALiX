@@ -80,13 +80,13 @@ ns8250_open(dev_t device, int flags)
 	uint8_t response, modem;
 	uint16_t divisor;
 
-	if (!*config) {
+	/*if (!*config) {
 		*config = kalloc(sizeof(struct tty));
 	}
 
 	if (!*config) {
 		return 1;
-	}
+	}*/
 
 	divisor = BAUD_MAX / 9600;
 
@@ -99,7 +99,7 @@ ns8250_open(dev_t device, int flags)
 	_send(device->base + NS8250_REG_INTERRUPT_ID, NS8250_INTERRUPT_DATA_AVAIL |
 			NS8250_INTERRUPT_TRANSMITTER_EMPTY | NS8250_INTERRUPT_BREAK_ERROR);
 	modem = NS8250_MODEM_CONTROL_OUT2 | NS8250_MODEM_CONTROL_RTS | NS8250_MODEM_CONTROL_DTR;
-	_send(device->base + NS8250_REG_MODEM_CONTROL, modem);
+	//~ _send(device->base + NS8250_REG_MODEM_CONTROL, modem);
 
 	/* test port */
 	_send(device->base + NS8250_REG_MODEM_CONTROL, modem | NS8250_MODEM_CONTROL_LOOP);

@@ -4,12 +4,14 @@
 #include <alix/dev.h>
 #include <alix/device.h>
 
+#define PORT 0x3f8
+
 extern struct dev ns8250;
 extern struct bus x86_ioport;
 
 struct device early_console = {
 	NULL,
-	0x3f8,
+	PORT,
 	&x86_ioport,
 	&ns8250,
 	NULL
@@ -24,8 +26,6 @@ init_serial(uint16_t port)
 void
 put_serial(uint16_t port, char c)
 {
-	//~ while (!(inb(port + 5) & 0x20));
-	//~ outb(port, c);
 	early_console.driver->write(&early_console, c);
 }
 
