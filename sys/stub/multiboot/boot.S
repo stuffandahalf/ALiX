@@ -64,30 +64,3 @@ data:
 	.byte 0x00
 gdt_end:
 */
-
-/*.global outb
-.type outb, @function
-outb:
-	pushl %ebp
-	movl %esp, %ebp
-
-	movw 8(%ebp), %dx
-	movb 12(%ebp), %al
-	outb %al, %dx
-
-	popl %ebp
-	ret
-.size outb, . - outb
-
-.global inb
-.type inb, @function
-inb:
-	pushl %ebp
-	movl %esp, %ebp
-
-	movw 8(%ebp), %dx
-	inb %dx, %al
-
-	popl %ebp
-	ret
-.size inb, . - inb*/

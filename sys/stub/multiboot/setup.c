@@ -1,42 +1,62 @@
+#include <stddef.h>
+#include <stdint.h>
 #include <multiboot.h>
+#include <alix/device.h>
 #include <alix/mem.h>
 //#include <alix/x86/bios.h>
 
-#include <stddef.h>
-#include <stdint.h>
+extern int init_serial(void);
+extern void put_serial(uint8_t c);
+extern int get_serial(void);
+extern void write_serial(const char *str);
 
-#define PORT 0x3f8
-
-extern int init_serial(uint16_t port);
-extern void put_serial(uint16_t port, uint8_t c);
-extern void write_serial(uint16_t port, const char *str);
-
-extern void printl(uint16_t port, int32_t num, uint8_t base);
-extern void printul(uint16_t port, uint32_t num, uint8_t base);
+extern void printl(int32_t num, uint8_t base);
+extern void printul(uint32_t num, uint8_t base);
 
 static int init_mmap(struct multiboot_info *mbd);
+
+extern struct device early_console;
+
+#define AMOUNT 200
 
 void
 setup32(multiboot_info_t *mbd)
 {
 	int i;
+	void *ptrs[AMOUNT];
 
-	if (init_serial(PORT)) {
+	if (init_serial()) {
 		return;
 	}
-	write_serial(PORT, "Hello Serial World!");
+	write_serial("Hello Serial World!");
 
-	write_serial(PORT, (const char *)mbd->boot_loader_name);
-	printl(PORT, mbd->mmap_length, 10);
+	write_serial((const char *)mbd->boot_loader_name);
+	printl(mbd->mmap_length, 10);
 	if (init_mmap(mbd)) {
-		write_serial(PORT, "Failed to initialize memory");
+		write_serial("Failed to initialize memory");
 		return;
 	}
-	write_serial(PORT, "SURVIVED");
+	write_serial("SURVIVED");
 
-	printl(PORT, INTN_MIN(8), 10);
-	printul(PORT, INTN_MAX(8), 10);
-	printul(PORT, UINTN_MAX(8), 10);
+	printul((uintptr_t)early_console.config, 16);
+
+	write_serial("memory loss test");
+	write_serial("BEFORE");
+	printul(kmem_avail(), 10);
+	for (i = 0; i < AMOUNT; i++) {
+		ptrs[i] = kalloc(4096);
+	}
+
+	for (i = 0; i < AMOUNT; i++) {
+		kfree(ptrs[i]);
+	}
+	write_serial("AFTER");
+	printul(kmem_avail(), 10);
+
+	for (;;) {
+		char c = get_serial();
+		put_serial(c);
+	}
 }
 
 
@@ -145,7 +165,7 @@ init_mmap(multiboot_info_t *mbd)
 		);
 	}
 
-	ret = init_sysmem(mmap, entries);
+	ret = kmem_init(mmap, entries);
 	/* free temporary mmap */
 	__asm__ __volatile__ (
 		"addl %0, %%esp\n\t"
@@ -153,11 +173,11 @@ init_mmap(multiboot_info_t *mbd)
 		: "r"((uintptr_t)mmap_sz + adjust)
 	);
 	if (ret) {
-		write_serial(PORT, "Failed to initialize system memory map");
+		write_serial("Failed to initialize system memory map");
 		return 1;
 	}
 
-	write_serial(PORT, "initialized memory map");
+	write_serial("initialized memory map");
 
 	return 0;
 }

@@ -18,30 +18,35 @@ struct device early_console = {
 };
 
 int
-init_serial(uint16_t port)
+init_serial(void)
 {
 	return ns8250.open(&early_console, 0);
 }
 
 void
-put_serial(uint16_t port, char c)
+put_serial(char c)
 {
 	early_console.driver->write(&early_console, c);
 }
-
-void
-write_serial(uint16_t port, const char *str)
+int
+get_serial(void)
 {
-	const char *c;
-	for (c = str; *c != '\0'; c++) {
-		put_serial(port, *c);
-	}
-	put_serial(port, '\r');
-	put_serial(port, '\n');
+	return early_console.driver->read(&early_console);
 }
 
 void
-printul(uint16_t port, uint32_t num, uint8_t base)
+write_serial(const char *str)
+{
+	const char *c;
+	for (c = str; *c != '\0'; c++) {
+		put_serial(*c);
+	}
+	put_serial('\r');
+	put_serial('\n');
+}
+
+void
+printul(uint32_t num, uint8_t base)
 {
 	unsigned char d;
 	long int i, count = 0;
@@ -61,23 +66,23 @@ printul(uint16_t port, uint32_t num, uint8_t base)
 	for (i = 0; i < count; i++) {
 		d = mun % base;
 		if (d < 10) {
-			put_serial(port, '0' + d);
+			put_serial('0' + d);
 		} else {
-			put_serial(port, 'A' + d - 10);
+			put_serial('A' + d - 10);
 		}
 		mun /= base;
 	}
 
-	put_serial(port, '\r');
-	put_serial(port, '\n');
+	put_serial('\r');
+	put_serial('\n');
 }
 
 void
-printl(uint16_t port, int32_t num, uint8_t base)
+printl(int32_t num, uint8_t base)
 {
 	if (num < 0) {
-		put_serial(port, '-');
+		put_serial('-');
 		num *= -1;
 	}
-	printul(port, num, base);
+	printul(num, base);
 }

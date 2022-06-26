@@ -80,11 +80,11 @@ ns8250_open(dev_t device, int flags)
 	uint8_t response, modem;
 	uint16_t divisor;
 
-	/*if (!*config) {
+	if (!*config) {
 		*config = kalloc(sizeof(struct tty));
 	}
 
-	if (!*config) {
+	/*if (!*config) {
 		return 1;
 	}*/
 
@@ -96,8 +96,8 @@ ns8250_open(dev_t device, int flags)
 	_send(device->base + NS8250_REG_BAUD_DIVISOR_HI, divisor >> 8);
 	_send(device->base + NS8250_REG_LINE_CONTROL, NS8250_LINE_CONTROL_BITS8 |
 			NS8250_LINE_CONTROL_PARITY_NONE | NS8250_LINE_CONTROL_STOP1);
-	_send(device->base + NS8250_REG_INTERRUPT_ID, NS8250_INTERRUPT_DATA_AVAIL |
-			NS8250_INTERRUPT_TRANSMITTER_EMPTY | NS8250_INTERRUPT_BREAK_ERROR);
+	//~ _send(device->base + NS8250_REG_INTERRUPT_ID, NS8250_INTERRUPT_DATA_AVAIL |
+			//~ NS8250_INTERRUPT_TRANSMITTER_EMPTY | NS8250_INTERRUPT_BREAK_ERROR);
 	modem = NS8250_MODEM_CONTROL_OUT2 | NS8250_MODEM_CONTROL_RTS | NS8250_MODEM_CONTROL_DTR;
 	//~ _send(device->base + NS8250_REG_MODEM_CONTROL, modem);
 
@@ -132,11 +132,16 @@ ns8250_read(dev_t device)
 {
 	const struct bus *bus = device->bus;
 	uint8_t response;
+	uint8_t lflags = NS8250_LINE_STATUS_DR | NS8250_LINE_STATUS_BI |
+			NS8250_LINE_STATUS_PE;
 
 	do {
 		_receive(device->base + NS8250_REG_LINE_STATUS);
-	} while (!(response & NS8250_LINE_STATUS_BI | NS8250_LINE_STATUS_PE));
-
+	} while (!(response & lflags));
+	if (!(response & NS8250_LINE_STATUS_DR)) {
+		return -1;
+	}
+	_receive(device->base + NS8250_REG_DATA);
 	return response;
 }
 
