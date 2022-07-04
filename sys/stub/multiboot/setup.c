@@ -17,41 +17,54 @@ static int init_mmap(struct multiboot_info *mbd);
 
 extern struct device early_console;
 
-#define AMOUNT 200
+//~ #define AMOUNT 262144
+#define SIZE (50 * 1024 * 1024)
+#define AMOUNT 1
 
 void
 setup32(multiboot_info_t *mbd)
 {
-	int i;
+	long long int i;
 	void *ptrs[AMOUNT];
 
 	if (init_serial()) {
 		return;
 	}
-	write_serial("Hello Serial World!");
+	write_serial("Hello Serial World!\n");
 
 	write_serial((const char *)mbd->boot_loader_name);
+	put_serial('\n');
 	printl(mbd->mmap_length, 10);
+	put_serial('\n');
 	if (init_mmap(mbd)) {
-		write_serial("Failed to initialize memory");
+		write_serial("Failed to initialize memory\n");
 		return;
 	}
-	write_serial("SURVIVED");
+	write_serial("SURVIVED\n");
 
-	printul((uintptr_t)early_console.config, 16);
+	//~ printul((uintptr_t)early_console.config, 16);
+	//~ put_serial('\n');
 
-	write_serial("memory loss test");
-	write_serial("BEFORE");
-	printul(kmem_avail(), 10);
+	//~ kmem_avail(1);
+
+	//~ return;
+
+	write_serial("memory loss test\n");
+	write_serial("BEFORE:\t");
+	printul(kmem_avail(0), 10);
+	put_serial('\n');
+
+	kmem_avail(1);
 	for (i = 0; i < AMOUNT; i++) {
-		ptrs[i] = kalloc(4096);
+		ptrs[i] = kalloc(SIZE);
 	}
-
+	kmem_avail(1);
 	for (i = 0; i < AMOUNT; i++) {
 		kfree(ptrs[i]);
 	}
-	write_serial("AFTER");
-	printul(kmem_avail(), 10);
+	write_serial("AFTER:\t");
+	printul(kmem_avail(0), 10);
+	put_serial('\n');
 
 	for (;;) {
 		char c = get_serial();
@@ -173,11 +186,11 @@ init_mmap(multiboot_info_t *mbd)
 		: "r"((uintptr_t)mmap_sz + adjust)
 	);
 	if (ret) {
-		write_serial("Failed to initialize system memory map");
+		write_serial("Failed to initialize system memory map\n");
 		return 1;
 	}
 
-	write_serial("initialized memory map");
+	write_serial("initialized memory map\n");
 
 	return 0;
 }

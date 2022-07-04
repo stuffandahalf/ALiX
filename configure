@@ -102,13 +102,15 @@ OUT_MAKEFILE=makefile
 REQUIRED_C_STANDARD=1
 export REQUIRED_C_STANDARD
 
-SUPPORTED_ARCHS="i386 amd64 ppc ppc64 arm32 aarch64"
+SUPPORTED_ARCHS="i386 amd64 ppc ppc64 arm32 aarch64 riscv32 riscv64"
 i386_ALTNAMES="i386 i486 i586 i686 i86pc 80386 80486 80586 80686"
 amd64_ALTNAMES="amd64 x86_64 x86-64"
 ppc_ALTNAMES="ppc powerpc"
 ppc64_ALTNAMES="ppc64 powerpc"
 arm32_ALTNAMES="arm32 arm armv6"
 aarch64_ALTNAMES="aarch64 arm64"
+riscv32_ALTNAMES="riscv32 risc-v riscv risc-v32"
+riscv64_ALTNAMES="riscv64 risc-v64"
 
 i386_COMPATIBLE_TOOLCHAINS=amd64
 ppc_COMPATIBLE_TOOLCHAINS=ppc64
