@@ -17,46 +17,33 @@ static int init_mmap(struct multiboot_info *mbd);
 
 extern struct device early_console;
 
-#define AMOUNT 200
-
 void
 setup32(multiboot_info_t *mbd)
 {
 	int i;
-	void *ptrs[AMOUNT];
 
 	if (init_serial()) {
 		return;
 	}
-	write_serial("Hello Serial World!");
+	write_serial("Hello Serial World!\n");
 
 	write_serial((const char *)mbd->boot_loader_name);
+	put_serial('\n');
 	printl(mbd->mmap_length, 10);
+	put_serial('\n');
 	if (init_mmap(mbd)) {
-		write_serial("Failed to initialize memory");
+		write_serial("Failed to initialize memory\n");
 		return;
 	}
-	write_serial("SURVIVED");
+	write_serial("SURVIVED\n");
 
-	printul((uintptr_t)early_console.config, 16);
+	write_serial("MEMORY LAYOUT\n");
+	kmem_avail(1);
 
-	write_serial("memory loss test");
-	write_serial("BEFORE");
-	printul(kmem_avail(), 10);
-	for (i = 0; i < AMOUNT; i++) {
-		ptrs[i] = kalloc(4096);
-	}
-
-	for (i = 0; i < AMOUNT; i++) {
-		kfree(ptrs[i]);
-	}
-	write_serial("AFTER");
-	printul(kmem_avail(), 10);
-
-	for (;;) {
-		char c = get_serial();
-		put_serial(c);
-	}
+	//~ for (;;) {
+		//~ char c = get_serial();
+		//~ put_serial(c);
+	//~ }
 }
 
 
@@ -173,11 +160,11 @@ init_mmap(multiboot_info_t *mbd)
 		: "r"((uintptr_t)mmap_sz + adjust)
 	);
 	if (ret) {
-		write_serial("Failed to initialize system memory map");
+		write_serial("Failed to initialize system memory map\n");
 		return 1;
 	}
 
-	write_serial("initialized memory map");
+	write_serial("initialized memory map\n");
 
 	return 0;
 }

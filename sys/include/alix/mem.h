@@ -4,10 +4,14 @@
 #define __NEED_SSIZE_T 1
 #include <stddef.h>
 
+#define MEMBLK_MAGIC_ALLOCED 0xA10C
+#define MEMBLK_MIN_SIZE (1 << 5) /* 32 bytes */
+#define MMAP_MAX_BLOCKS 15
+
 /* type used to identify a block of memory by alloc/free*/
 struct memblk {
-	size_t length;
-	struct memblk *next;
+	unsigned short int magic;
+	ssize_t exp;
 };
 
 /* type used to define the computer's memory map */
@@ -20,12 +24,13 @@ struct mmap_entry {
 	int type;
 	void *start;
 	size_t length;
-	size_t blockc;
-	struct memblk *block;
+	ssize_t exp[MMAP_MAX_BLOCKS];
+	//~ size_t blockc;
+	//~ struct memblk *block;
 };
 
 int kmem_init(struct mmap_entry *mmap, size_t entryc);
-size_t kmem_avail(void);
+size_t kmem_avail(int debug);
 
 void *kalloc(size_t count);
 void kfree(void *ptr);

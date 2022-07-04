@@ -41,8 +41,6 @@ write_serial(const char *str)
 	for (c = str; *c != '\0'; c++) {
 		put_serial(*c);
 	}
-	put_serial('\r');
-	put_serial('\n');
 }
 
 void
@@ -72,9 +70,6 @@ printul(uint32_t num, uint8_t base)
 		}
 		mun /= base;
 	}
-
-	put_serial('\r');
-	put_serial('\n');
 }
 
 void

@@ -1,9 +1,6 @@
 #include <stdint.h>
 #include <alix/mem.h>
 
-/* local constant since NULL is a legal address */
-#define NONE ((void *)-1)
-
 extern void write_serial(const char *str);
 extern void printul(unsigned long int num, unsigned char base);
 extern void printl(unsigned long int num, unsigned char base);
@@ -11,25 +8,37 @@ extern void printl(unsigned long int num, unsigned char base);
 static struct mmap_entry *sys_mmap = NULL;
 static size_t sys_mmap_entryc = 0;
 
-static struct memblk *freemem = NONE;
-
 extern uintptr_t kernel_bottom, kernel_top;
+
+//~ #define DEBUG_MEM 1
+
+#ifdef DEBUG_MEM
+#define DEBUG_MEM_INIT 1
+#define DEBUG_MEM_ALLOC 1
+#define DEBUG_MEM_FREE 1
+#define DEBUG_MEM_AVAIL 1
+#endif
 
 int
 kmem_init(struct mmap_entry *entries, size_t entryc)
 {
-	int i, j;
-	size_t entryc_real = 0, total = 0;
+	int i, j, k;
+	size_t entryc_real = 0, total = 0, remainder;
 	struct mmap_entry tmp, local_mmap[entryc + 2];
 	struct mmap_entry *tmp_mmap, *current = local_mmap;
+	struct memblk *blk;
+	void *start;
 	void *kbot = &kernel_bottom, *ktop = &kernel_top;
 
-	write_serial("kernel_bottom");
-	printul(kbot, 16);
-	write_serial("kernel_top");
-	printul(ktop, 16);
-	write_serial("entryc");
+#if DEBUG_MEM_INIT > 0
+	write_serial("kernel_bottom:\t");
+	printul((uintptr_t)kbot, 16);
+	write_serial("\nkernel_top:\t");
+	printul((uintptr_t)ktop, 16);
+	write_serial("\nentryc:\t");
 	printul(entryc, 10);
+	put_serial('\n');
+#endif
 
 	/* Add entries to function-local memory map variable */
 	for (i = 0; i < entryc; i++) {
@@ -40,9 +49,13 @@ kmem_init(struct mmap_entry *entries, size_t entryc)
 
 		/* if mmap_entry contains kernel, need to split into 2-3 nodes */
 		if (entries[i].start <= kbot && ktop <= entries[i].start + entries[i].length) {
-			write_serial("Kernel falls between");
-			printul(entries[i].start, 16);
-			printul(entries[i].start + entries[i].length, 16);
+#if DEBUG_MEM_INIT > 0
+			write_serial("Kernel falls between:\t");
+			printul((uintptr_t)entries[i].start, 16);
+			write_serial(" - ");
+			printul((uintptr_t)entries[i].start + entries[i].length, 16);
+			put_serial('\n');
+#endif
 
 			if (entries[i].start < kbot) {
 				current->start = entries[i].start;
@@ -72,10 +85,15 @@ kmem_init(struct mmap_entry *entries, size_t entryc)
 		}
 	}
 
-	write_serial("entryc_real");
+#if DEBUG_MEM_INIT > 0
+	write_serial("entryc_real:\t");
 	printul(entryc_real, 10);
+	put_serial('\n');
+#endif
 
 	/* sort through memory map from smallest to largest */
+	total = 0;
+	//~ write_serial("MEMORY BLOCKS");
 	for (i = 0; i < entryc_real; i++) {
 		for (j = i; j < entryc_real; j++) {
 			if (local_mmap[i].length > local_mmap[j].length) {
@@ -87,24 +105,50 @@ kmem_init(struct mmap_entry *entries, size_t entryc)
 		/* i'th block is now in order */
 
 		/* set up free memory blocks */
-		if (local_mmap[i].type == MEMORY_TYPE_FREE) {
-			local_mmap[i].block = local_mmap[i].start;
-			local_mmap[i].block->length = local_mmap[i].length - sizeof(struct memblk);
-			local_mmap[i].block->next = NULL;
-			local_mmap[i].blockc = 1;
-		} else {
-			local_mmap[i].block = NULL;
-			local_mmap[i].blockc = 0;
+		local_mmap[i].exp[0] = -1;
+		if (local_mmap[i].type == MEMORY_TYPE_FREE && local_mmap[i].length) {
+			total += local_mmap[i].length;
+			//~ write_serial("NEW ENTRY");
+			//~ printul(local_mmap[i].length, 10);
+
+			remainder = local_mmap[i].length;
+			start = local_mmap[i].start;
+			for (k = 0; k < MMAP_MAX_BLOCKS; k++) {
+				local_mmap[i].exp[k] = -1;
+				while (remainder >> (local_mmap[i].exp[k] + 1) >= MEMBLK_MIN_SIZE) {
+					local_mmap[i].exp[k]++;
+				}
+				if (local_mmap[i].exp[k] >= 0) {
+					blk = start;
+					blk->magic = 0;
+					blk->exp = local_mmap[i].exp[k];
+
+					//~ printul((uintptr_t)blk, 16);
+
+					start += MEMBLK_MIN_SIZE << local_mmap[i].exp[k];
+					remainder -= MEMBLK_MIN_SIZE << local_mmap[i].exp[k];
+				}
+
+			}
 		}
 	}
+#if DEBUG_MEM_INIT > 0
+	write_serial("real mem:\t");
+	printul(total, 10);
+	put_serial('\n');
+#endif
 
 	/* allocate kernel memory map */
 	sys_mmap = local_mmap;
 	sys_mmap_entryc = entryc_real;
+#if DEBUG_MEM_INIT > 0
+	write_serial("computed mem:\t");
+	printul(kmem_avail(0), 10);
+	put_serial('\n');
+#endif
 	tmp_mmap = kalloc(sizeof(struct mmap_entry) * entryc_real);
 	sys_mmap = NULL;
-	if (!tmp_mmap) {;
-		//~ write_serial("FAILED TO ALLOCATE SYSTEM MEMORY MAP");
+	if (!tmp_mmap) {
 		sys_mmap_entryc = 0;
 		return 1;
 	}
@@ -115,88 +159,151 @@ kmem_init(struct mmap_entry *entries, size_t entryc)
 	}
 	sys_mmap = tmp_mmap;
 
-	/*write_serial("Ordered mmap");
-	total = 0;
-	for (i = 0; i < entryc_real; i++) {
-		//printul(sys_mmap[i].start, 16);
-		printul(sys_mmap[i].length, 10);
-		total += sys_mmap[i].length;
-	}
-	write_serial("total memory");
-	printul(total, 10);*/
-
-	/*total = 0;
-	for (i = 0; i < sys_mmap_entryc; i++) {
-		struct memblk *blk = sys_mmap[i].block;
-		for (j = 0; j < sys_mmap[i].blockc; j++) {
-			total += blk->length;
-			blk = blk->next;
-		}
-	}
-	write_serial("available memory");
-	printul(total, 10);*/
-
 	return 0;
 }
 
+#define MEMBLK_SIZE(exp) (MEMBLK_MIN_SIZE << (exp))
+#define BUDDY_MASK(exp) (MEMBLK_MIN_SIZE << (exp))
+#define BUDDY_ADDR(blk, exp) ((void *)((uintptr_t)blk ^ BUDDY_MASK(exp)))
+
 size_t
-kmem_avail(void)
+kmem_avail(int debug)
 {
+	size_t i, j;
 	size_t total = 0;
-	ssize_t i, j;
-	struct memblk *blk;
+	ssize_t exp;
+	void *start;
+	struct memblk *blk, *buddy;
+
+//~ #if DEBUG_MEM_AVAIL > 0
+	if (debug) {
+		write_serial("blk->exp\talloced\tstart\tend\n");
+	}
+//~ #endif
 
 	for (i = 0; i < sys_mmap_entryc; i++) {
-		blk = sys_mmap[i].block;
+		if (MEMORY_TYPE_FREE != sys_mmap[i].type) {
+			continue;
+		}
 
-		for (j = 0; j < sys_mmap[i].blockc; j++) {
-			total += blk->length;
+		start = sys_mmap[i].start;
+		for (j = 0; j < MMAP_MAX_BLOCKS && sys_mmap[i].exp[j] >= 0; j++) {
+			blk = start;
 
-			blk = blk->next;
+			do {
+//~ #if DEBUG_MEM_AVAIL > 0
+				if (debug) {
+					printul(blk->exp, 10);
+					write_serial("\t\t");
+					write_serial(MEMBLK_MAGIC_ALLOCED == blk->magic ? "yes" : "no");
+					put_serial('\t');
+					printul(blk, 16);
+					put_serial('\t');
+					printul((void *)blk + MEMBLK_SIZE(blk->exp), 16);
+					put_serial('\n');
+				}
+//~ #endif
+
+				exp = blk->exp;
+				if (MEMBLK_MAGIC_ALLOCED != blk->magic) {
+					total += MEMBLK_SIZE(blk->exp);
+				}
+
+				buddy = BUDDY_ADDR(blk, exp);
+				while ((uintptr_t)buddy < (uintptr_t)blk) {
+					exp++;
+					buddy = BUDDY_ADDR(buddy, exp);
+				}
+				blk = buddy;
+			} while (exp < sys_mmap[i].exp[j]);
+
+			start += MEMBLK_MIN_SIZE << sys_mmap[i].exp[j];
 		}
 	}
 
 	return total;
 }
 
-#define blkstart(blk) ((void *)blk + sizeof(struct memblk))
-
 void *
 kalloc(size_t count)
 {
-	struct memblk *prev = NONE, *blk, *remainder, *next;
+	struct memblk *blk, *buddy;
+	void *start;
+	ssize_t exp;
 	ssize_t i, j;
 
+	count += sizeof(struct memblk);
+#if DEBUG_MEM_ALLOC > 0
+	write_serial("REQUESTED SIZE:\t");
+	printul(count, 10);
+	put_serial('\n');
+#endif
+
 	for (i = 0; i < sys_mmap_entryc; i++) {
-		if (sys_mmap[i].length < count) {
+#if DEBUG_MEM_ALLOC > 0
+		write_serial("LOOP A\n");
+#endif
+		if (MEMORY_TYPE_FREE != sys_mmap[i].type || sys_mmap[i].length < count) {
 			continue;
 		}
 
-		blk = sys_mmap[i].block;
-		for (j = 0; j < sys_mmap[i].blockc; j++) {
-			if (blk->length >= count) {
-				if (blk->length > count + sizeof(struct memblk)) {
-					remainder = blkstart(blk) + count;
+		start = sys_mmap[i].start;
+		for (j = 0; j < MMAP_MAX_BLOCKS && sys_mmap[i].exp[j] >= 0; j++) {
+#if DEBUG_MEM_ALLOC > 0
+			write_serial("LOOP B\n");
+#endif
+			blk = start;
 
-					remainder->length = blk->length - count - sizeof(struct memblk);
-					remainder->next = blk->next;
-					next = remainder;
-				} else {
-					next = blk->next;
-					sys_mmap[i].blockc--;
+			exp = sys_mmap[i].exp[j];
+			do {
+#if DEBUG_MEM_ALLOC > 0
+				write_serial("LOOP C\n");
+				write_serial("exp\tblk->exp\tblk\tbuddy\n");
+				printl(exp, 10);
+				put_serial('\t');
+				printul(blk->exp, 10);
+				write_serial("\t\t");
+				printul((uintptr_t)blk, 16);
+				//~ printul((uintptr_t)BUDDY_ADDR(blk, blk->exp), 16);
+				put_serial('\t');
+				//~ put_serial('\n');
+#endif
+
+				exp = blk->exp;
+
+				if (MEMBLK_MAGIC_ALLOCED != blk->magic && MEMBLK_SIZE(blk->exp) >= count) {
+					blk->magic = MEMBLK_MAGIC_ALLOCED;
+					while (blk->exp > 0 && MEMBLK_SIZE(blk->exp - 1) > count) {
+						blk->exp--;
+						buddy = BUDDY_ADDR(blk, blk->exp);
+						if (MEMBLK_MAGIC_ALLOCED != buddy->magic) {
+							buddy->magic = 0;
+							buddy->exp = blk->exp;
+						}
+					}
+#if DEBUG_MEM_ALLOC > 0
+					write_serial("\nRETURNED:\t");
+					printul((uintptr_t)(blk + 1), 16);
+					put_serial('\t');
+					printl(blk->exp, 10);
+					put_serial('\n');
+#endif
+					return (void *)(blk + 1);
 				}
 
-				if (NONE != prev) {
-					prev->next = next;
-				} else {
-					sys_mmap[i].block = next;
+				buddy = BUDDY_ADDR(blk, exp);
+				while (buddy < blk) {
+					exp++;
+					buddy = BUDDY_ADDR(buddy, exp);
 				}
+				blk = buddy;
+#if DEBUG_MEM_ALLOC > 0
+				printul((uintptr_t)blk, 16);
+				put_serial('\n');
+#endif
+			} while (exp < sys_mmap[i].exp[j] && blk < (start + MEMBLK_SIZE(sys_mmap[i].exp[j])));
 
-				return blkstart(blk);
-			}
-
-			prev = blk;
-			blk = blk->next;
+			start += MEMBLK_MIN_SIZE << sys_mmap[i].exp[j];
 		}
 	}
 
@@ -206,40 +313,51 @@ kalloc(size_t count)
 void
 kfree(void *ptr)
 {
-	ssize_t i, j;
-	struct memblk *prev, *current, *block = (struct memblk *)ptr - 1;
+	int found = 0;
+	size_t i, j;
+	ssize_t max_exp;
+	uintptr_t start, end;
+	struct memblk *blk, *buddy;
 
-	for (i = 0; i < sys_mmap_entryc; i++) {
-		if (sys_mmap[i].start > block || block + block->length > sys_mmap[i].start + sys_mmap[i].length) {
+	if (!ptr) {
+		return;
+	}
+
+	blk = (struct memblk *)ptr - 1;
+	if (MEMBLK_MAGIC_ALLOCED != blk->magic) {
+		return;
+	}
+
+	for (i = 0; i < sys_mmap_entryc && !found; i++) {
+		if (MEMORY_TYPE_FREE != sys_mmap[i].type) {
 			continue;
 		}
 
-		prev = sys_mmap[i].block;
-		current = prev->next;
-		for (j = 1; j < sys_mmap[i].blockc; j++) {
-			if (prev < block && (!current || block < current)) {
-				break;
+		start = sys_mmap[i].start;
+		for (j = 0; !found && j < MMAP_MAX_BLOCKS && sys_mmap[i].exp[j] >= 0; j++) {
+			end = start + MEMBLK_SIZE(sys_mmap[i].exp[j]);
+			if (start <= blk && blk < end) {
+				max_exp = sys_mmap[i].exp[j];
+				found = 1;
 			}
-
-			prev = current;
-			current = current->next;
+			start = end;
 		}
+	}
 
-		/* if sequential, expand current block with next free block */
-		if (current && blkstart(block) + block->length == current) {
-			block->length += sizeof(struct memblk) + current->length;
-			block->next = current->next;
+	if (!found) {
+		return;
+	}
+
+	blk->magic = 0;
+	buddy = BUDDY_ADDR(blk, blk->exp);
+	while (blk->exp < max_exp && MEMBLK_MAGIC_ALLOCED != buddy->magic) {
+		if (buddy < blk) {
+			buddy->exp = blk->exp + 1;
+			buddy->magic = 0;
+			blk = buddy;
 		} else {
-			block->next = current;
+			blk->exp++;
 		}
-
-		/* if sequential, expand previous block with size of current block */
-		if (blkstart(prev) + prev->length == block) {
-			prev->length += sizeof(struct memblk) + block->length;
-			prev->next = block->next;
-		} else {
-			prev->next = block;
-		}
-
+		buddy = BUDDY_ADDR(blk, blk->exp);
 	}
 }
