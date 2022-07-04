@@ -17,15 +17,10 @@ static int init_mmap(struct multiboot_info *mbd);
 
 extern struct device early_console;
 
-//~ #define AMOUNT 262144
-#define SIZE (50 * 1024 * 1024)
-#define AMOUNT 1
-
 void
 setup32(multiboot_info_t *mbd)
 {
-	long long int i;
-	void *ptrs[AMOUNT];
+	int i;
 
 	if (init_serial()) {
 		return;
@@ -42,34 +37,13 @@ setup32(multiboot_info_t *mbd)
 	}
 	write_serial("SURVIVED\n");
 
-	//~ printul((uintptr_t)early_console.config, 16);
-	//~ put_serial('\n');
-
-	//~ kmem_avail(1);
-
-	//~ return;
-
-	write_serial("memory loss test\n");
-	write_serial("BEFORE:\t");
-	printul(kmem_avail(0), 10);
-	put_serial('\n');
-
+	write_serial("MEMORY LAYOUT\n");
 	kmem_avail(1);
-	for (i = 0; i < AMOUNT; i++) {
-		ptrs[i] = kalloc(SIZE);
-	}
-	kmem_avail(1);
-	for (i = 0; i < AMOUNT; i++) {
-		kfree(ptrs[i]);
-	}
-	write_serial("AFTER:\t");
-	printul(kmem_avail(0), 10);
-	put_serial('\n');
 
-	for (;;) {
-		char c = get_serial();
-		put_serial(c);
-	}
+	//~ for (;;) {
+		//~ char c = get_serial();
+		//~ put_serial(c);
+	//~ }
 }
 
 

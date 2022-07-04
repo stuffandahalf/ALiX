@@ -313,37 +313,51 @@ kalloc(size_t count)
 void
 kfree(void *ptr)
 {
+	int found = 0;
 	size_t i, j;
+	ssize_t max_exp;
+	uintptr_t start, end;
 	struct memblk *blk, *buddy;
-	void *start, *end;
-	//~ struct memblk *prev, *current, *block = (struct memblk *)ptr - 1;
 
-	//~ if (!ptr) {
-		//~ return;
-	//~ }
+	if (!ptr) {
+		return;
+	}
 
-	//~ blk = ptr - sizeof(struct memblk);
-	//~ if (blk->magic != MEMBLK_MAGIC_ALLOCED) {
-		//~ return;
-	//~ }
+	blk = (struct memblk *)ptr - 1;
+	if (MEMBLK_MAGIC_ALLOCED != blk->magic) {
+		return;
+	}
 
-	//~ for (i = 0; i < sys_mmap_entryc; i++) {
-		//~ start = sys_mmap[i].start;
-		//~ for (j = 0; j < MMAP_MAX_BLOCKS && sys_mmap[i].exp[j] >= 0; j++) {
-			//~ end = (void *)((uintptr_t)start + MEMBLK_MIN_SIZE << sys_mmap[i].exp[j]);
+	for (i = 0; i < sys_mmap_entryc && !found; i++) {
+		if (MEMORY_TYPE_FREE != sys_mmap[i].type) {
+			continue;
+		}
 
-			//~ if (start <= blk && blk <= end) {
-				//~ break;
-			//~ }
+		start = sys_mmap[i].start;
+		for (j = 0; !found && j < MMAP_MAX_BLOCKS && sys_mmap[i].exp[j] >= 0; j++) {
+			end = start + MEMBLK_SIZE(sys_mmap[i].exp[j]);
+			if (start <= blk && blk < end) {
+				max_exp = sys_mmap[i].exp[j];
+				found = 1;
+			}
+			start = end;
+		}
+	}
 
-			//~ start = end;
-		//~ }
-	//~ }
+	if (!found) {
+		return;
+	}
 
-	//~ blk->magic = 0;
-	//~ buddy = BUDDY_ADDR(blk, blk->exp);
-	//~ while (MEMBLK_MAGIC_ALLOCED != buddy->magic && blk->exp <= sys_mmap[i].exp[j]) {
-		//~ blk->exp++;
-		//~ buddy = BUDDY_ADDR(blk, blk->exp);
-	//~ }
+	blk->magic = 0;
+	buddy = BUDDY_ADDR(blk, blk->exp);
+	while (blk->exp < max_exp && MEMBLK_MAGIC_ALLOCED != buddy->magic) {
+		if (buddy < blk) {
+			buddy->exp = blk->exp + 1;
+			buddy->magic = 0;
+			blk = buddy;
+		} else {
+			blk->exp++;
+		}
+		buddy = BUDDY_ADDR(blk, blk->exp);
+	}
 }

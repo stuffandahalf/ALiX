@@ -79,3 +79,6 @@ tools/llvm*
 # Generated makefiles
 *makefile
 
+# kernel
+sys/alix
+
