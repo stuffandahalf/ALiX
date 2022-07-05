@@ -91,7 +91,7 @@ init_mmap(multiboot_info_t *mbd)
 	if (mbd->flags & MULTIBOOT_INFO_MEM_MAP) {
 		mb_mmap = (void *)mbd->mmap_addr;
 		for (i = 0; i < mbd->mmap_length; i++) {
-			blk.start = (void *)mb_mmap->addr;
+			blk.start = (void *)(uintptr_t)mb_mmap->addr;
 			blk.length = mb_mmap->len;
 			switch (mb_mmap->type) {
 			case MULTIBOOT_MEMORY_AVAILABLE:
