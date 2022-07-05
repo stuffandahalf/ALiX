@@ -116,6 +116,55 @@ kmem_init(struct mmap_entry *entries, size_t entryc)
 #define BUDDY_MASK(exp) (MEMBLK_MIN_SIZE << (exp))
 #define BUDDY_ADDR(blk, exp) ((void *)((uintptr_t)blk ^ BUDDY_MASK(exp)))
 
+void *
+memcpy(void *dest, const void *src, size_t n)
+{
+	size_t i;
+
+	for (i = 0; i < n; i++) {
+		*(uint8_t *)dest = *(uint8_t *)src;
+	}
+
+	return dest;
+}
+
+static struct memblk *
+blk_combine(struct memblk *blk, struct memblk *buddy)
+{
+	if (buddy < blk) {
+		buddy->exp = blk->exp + 1;
+		buddy->magic = 0;
+		blk = buddy;
+	} else {
+		blk->exp++;
+	}
+	return blk;
+}
+
+static ssize_t
+blk_exp_max(struct memblk *blk)
+{
+	ssize_t i, j;
+	uintptr_t start, end;
+
+	for (i = 0; i < sys_mmap_entryc; i++) {
+		if (MEMORY_TYPE_FREE != sys_mmap[i].type) {
+			continue;
+		}
+
+		start = (uintptr_t)sys_mmap[i].start;
+		for (j = 0; j < MMAP_MAX_BLOCKS && sys_mmap[i].exp[j] >= 0; j++) {
+			end = start + MEMBLK_SIZE(sys_mmap[i].exp[j]);
+			if (start <= (uintptr_t)blk && (uintptr_t)blk < end) {
+				return sys_mmap[i].exp[j];
+			}
+			start = end;
+		}
+	}
+
+	return -1;
+}
+
 size_t
 kmem_avail(int debug)
 {
@@ -171,17 +220,17 @@ kmem_avail(int debug)
 }
 
 void *
-kalloc(size_t count)
+kalloc(size_t size)
 {
 	struct memblk *blk, *buddy;
 	void *start;
 	ssize_t exp;
 	ssize_t i, j;
 
-	count += sizeof(struct memblk);
+	size += sizeof(struct memblk);
 
 	for (i = 0; i < sys_mmap_entryc; i++) {
-		if (MEMORY_TYPE_FREE != sys_mmap[i].type || sys_mmap[i].length < count) {
+		if (MEMORY_TYPE_FREE != sys_mmap[i].type || sys_mmap[i].length < size) {
 			continue;
 		}
 
@@ -194,9 +243,9 @@ kalloc(size_t count)
 
 				exp = blk->exp;
 
-				if (MEMBLK_MAGIC_ALLOCED != blk->magic && MEMBLK_SIZE(blk->exp) >= count) {
+				if (MEMBLK_MAGIC_ALLOCED != blk->magic && MEMBLK_SIZE(blk->exp) >= size) {
 					blk->magic = MEMBLK_MAGIC_ALLOCED;
-					while (blk->exp > 0 && MEMBLK_SIZE(blk->exp - 1) > count) {
+					while (blk->exp > 0 && MEMBLK_SIZE(blk->exp - 1) > size) {
 						blk->exp--;
 						buddy = BUDDY_ADDR(blk, blk->exp);
 						if (MEMBLK_MAGIC_ALLOCED != buddy->magic) {
@@ -240,36 +289,71 @@ kfree(void *ptr)
 		return;
 	}
 
-	for (i = 0; i < sys_mmap_entryc && !found; i++) {
-		if (MEMORY_TYPE_FREE != sys_mmap[i].type) {
-			continue;
-		}
+	max_exp = blk_exp_max(blk);
 
-		start = (uintptr_t)sys_mmap[i].start;
-		for (j = 0; !found && j < MMAP_MAX_BLOCKS && sys_mmap[i].exp[j] >= 0; j++) {
-			end = start + MEMBLK_SIZE(sys_mmap[i].exp[j]);
-			if (start <= (uintptr_t)blk && (uintptr_t)blk < end) {
-				max_exp = sys_mmap[i].exp[j];
-				found = 1;
-			}
-			start = end;
-		}
-	}
-
-	if (!found) {
+	if (max_exp < 0) {
 		return;
 	}
 
 	blk->magic = 0;
 	buddy = BUDDY_ADDR(blk, blk->exp);
 	while (blk->exp < max_exp && MEMBLK_MAGIC_ALLOCED != buddy->magic) {
-		if (buddy < blk) {
-			buddy->exp = blk->exp + 1;
-			buddy->magic = 0;
-			blk = buddy;
-		} else {
-			blk->exp++;
-		}
+		blk = blk_combine(blk, buddy);
 		buddy = BUDDY_ADDR(blk, blk->exp);
 	}
+}
+
+void *
+krealloc(void *ptr, size_t size)
+{
+	struct memblk *blk, *blk1, *buddy;
+	ssize_t exp_max, exp_new, exp;
+	void *new_ptr;
+
+	if (!ptr) {
+		return kalloc(size);
+	}
+
+	size += sizeof(struct memblk);
+
+	blk = (struct memblk *)ptr - 1;
+	if (MEMBLK_MAGIC_ALLOCED != blk->magic) {
+		return NULL;
+	}
+
+	exp_max = blk_exp_max(blk);
+	if (exp_max < 0) {
+		return NULL;
+	}
+
+	exp_new = blk->exp;
+	blk1 = blk;
+	buddy = BUDDY_ADDR(blk, exp_new);
+	while (exp_new < exp_max && MEMBLK_SIZE(exp_new) < size &&
+			MEMBLK_MAGIC_ALLOCED != buddy->magic) {
+		exp_new++;
+		if (blk1 > buddy) {
+			blk1 = buddy;
+		}
+		buddy = BUDDY_ADDR(blk1, exp_new);
+	}
+
+	if (MEMBLK_SIZE(exp_new) < size || MEMBLK_MAGIC_ALLOCED == buddy->magic) {
+		new_ptr = kalloc(size - sizeof(struct memblk));
+		if (!new_ptr) {
+			return NULL;
+		}
+
+		memcpy(new_ptr, ptr, MEMBLK_SIZE(blk->exp) - sizeof(struct memblk));
+		kfree(ptr);
+		return new_ptr;
+	}
+
+	blk1 = blk;
+	exp = blk->exp;
+	while (blk->exp < exp_new) {
+		buddy = BUDDY_ADDR(blk, blk->exp);
+		blk = blk_combine(blk, buddy);
+	}
+	return memcpy(blk + 1, blk1 + 1, MEMBLK_SIZE(exp) - sizeof(struct memblk));
 }

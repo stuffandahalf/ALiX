@@ -21,6 +21,7 @@ void
 setup32(multiboot_info_t *mbd)
 {
 	int i;
+	//~ void *a, *b;
 
 	if (init_serial()) {
 		return;
@@ -39,6 +40,20 @@ setup32(multiboot_info_t *mbd)
 
 	write_serial("MEMORY LAYOUT\n");
 	kmem_avail(1);
+
+	//~ kmem_avail(1);
+	//~ b = kalloc(1024);
+	//~ kmem_avail(1);
+
+	//~ a = kalloc(1024);
+	//~ kmem_avail(1);
+	//~ printul((uintptr_t)a, 16);
+	//~ put_serial('\n');
+
+	//~ a = krealloc(a, 1024 * 1024);
+	//~ kmem_avail(1);
+	//~ printul((uintptr_t)a, 16);
+	//~ put_serial('\n');
 
 	//~ for (;;) {
 		//~ char c = get_serial();
