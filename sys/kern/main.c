@@ -17,5 +17,6 @@ main(void)
 	/* ensure interrupts are set up */
 	/* mount root device */
 	/* mount devtab? */
+	/* set up process table */
 	/* fork/exec /bin/init */
 }

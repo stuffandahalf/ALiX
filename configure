@@ -102,15 +102,15 @@ OUT_MAKEFILE=makefile
 REQUIRED_C_STANDARD=1
 export REQUIRED_C_STANDARD
 
-SUPPORTED_ARCHS="i386 amd64 ppc ppc64 arm32 aarch64 riscv32 riscv64"
+SUPPORTED_ARCHS="i386 amd64 ppc ppc64 armv6 aarch64 riscv32 riscv64"
 i386_ALTNAMES="i386 i486 i586 i686 i86pc 80386 80486 80586 80686"
 amd64_ALTNAMES="amd64 x86_64 x86-64"
 ppc_ALTNAMES="ppc powerpc"
 ppc64_ALTNAMES="ppc64 powerpc"
-arm32_ALTNAMES="arm32 arm armv6"
+armv6_ALTNAMES="arm32 arm armv6"
 aarch64_ALTNAMES="aarch64 arm64"
 riscv32_ALTNAMES="riscv32 risc-v riscv risc-v32"
-riscv64_ALTNAMES="riscv64 risc-v64"
+riscv64_ALTNAMES="riscv64 risc-v64 RISC-V"
 
 i386_COMPATIBLE_TOOLCHAINS=amd64
 ppc_COMPATIBLE_TOOLCHAINS=ppc64
@@ -161,7 +161,7 @@ shift `dc -e "$OPTIND 1 - p"`
 
 # set up tool paths and names to search for
 CC_CANDIDATES="c99 cc clang gcc"
-LD_CANDIDATES="ld bfd lld ld.lld gold ld.gold mold ld.mold"
+LD_CANDIDATES="ld ld.bfd ld.lld ld.gold ld.mold"
 AR_CANDIDATES="ar llvm-ar gcc-ar"
 eval "TOOLCHAIN_ARCHS=\"\$${TARGET_ARCH}_ALTNAMES\""
 eval "COMPATIBLE_TOOLCHAINS=\"\$${TARGET_ARCH}_COMPATIBLE_TOOLCHAINS\""
@@ -333,7 +333,8 @@ if [ -z "$LD_FOUND" ]; then
 		LD_CANDIDATES="`basename \`which "$LD"\``"
 		LD_PATHS="`dirname \`which $LD\``"
 	else
-		LD_PATHS="$PATHS"
+		LD_CANDIDATES="`basename "$CC"` $LD_CANDIDATES"
+		LD_PATHS="`dirname "$CC"` $PATHS"
 	fi
 	FOUND=""
 
@@ -354,105 +355,55 @@ if [ -z "$LD_FOUND" ]; then
 
 			log 1 "TESTING \"$LD\""
 
-			# run tests
-			echo "void _start(void) { }" > .entry.c
-			echo "extern int puts(const char *); int main(int argc, char **argv) {puts(\"Hello World!\");return 0;}" > .main.c
-
-			#"$CC" $CFLAGS -c .entry.c
-			#"$CC" $CFLAGS -c .main.c
-			#log 2 "Attempting clean link"
-			#"$LD" $LDFLAGS_TEST -o .entry .entry.o 2> /dev/null
-			#file .entry
-			#CLEAN_LINK=$?
-			#if [ $CLEAN_LINK -ne 0 ]; then
-				#log 2 "FAILED"
-			#else
-				#log 2 "OK"
-			#fi
-
-			"$CC" -c .entry.c
-			"$CC" -c .main.c
-			log 2 "Attempt to link user space application"
-			if "$LD" "$LDFLAGS_TEST" -o .main .main.o 2> /dev/null; then
-				log 2 "OK"
-				USERSPACE_LINKER=0
+			log 2 "Detecting linker brand"
+			if "$LD" $LDFLAGS_TEST -v 2>&1 | grep -i "lld" > /dev/null; then
+				LD_BRAND=llvm
+			elif "$LD" $LDFLAGS_TEST -v 2>&1 | grep -i "clang" > /dev/null; then
+				LD_BRAND=clang
+			elif "$LD" $LDFLAGS_TEST -v 2>&1 | grep -i "gnu" > /dev/null; then
+				LD_BRAND=gnu
+			elif [ `basename "$LD"` = "ld" ]; then
+				LD_BRAND=posix
 			else
 				log 2 "FAILED"
-				USERSPACE_LINKER=1
+				continue
+			fi
+			log 2 "$LD_BRAND"
+
+			# generate test files
+			echo "void _start(void) {}" > .entry.c
+			"$CC" $CFLAGS -c -o .entry.o .entry.c
+
+			if [ "$LD_BRAND" == "clang" ]; then
+				LDFLAGS_TEST="$LDFLAGS_TEST --target=${TARGET_ARCH}-none-elf"
 			fi
 
-			"$CC" $CFLAGS -c .entry.c
-			"$CC" $CFLAGS -c .main.c
-
-			log 2 "Attempt to link using arch flags"
-			if [ $USERSPACE_LINKER -eq 0 ]; then
-				if "$LD" -m32 $LDFLAGS_TEST -o .main .main.o 2> /dev/null; then
-					LDFLAGS_TEST="-m32 $LDFLAGS_TEST"
-					log 2 "OK"
-				elif "$LD" -target=${TARGET_ARCH}-none-elf $LDFLAGS_TEST -o .main .main.o 2> /dev/null; then
-					LDFLAGS_TEST="-target=${TARGET_ARCH}-none-elf $LDFLAGS_TEST"
-					log 2 "OK"
-				else
-					eval "ALTNAMES=\$${TARGET_ARCH}_ALTNAMES"
-					COMPATIBLE_ALTNAME=1
-					for ALTNAME in $ALTNAMES; do
-						if "$LD" -melf_${ALTNAME} $LDFLAGS_TEST -o .main .main.o 2> /dev/null; then
-							LDFLAGS_TEST="-melf_${ALTNAME} $LDFLAGS_TEST"
-							log 2 "OK"
-							COMPATIBLE_ALTNAME=0
-							break
-						fi
-					done
-					if [ "$COMPATIBLE_ALTNAME" -eq 1 ]; then
-						log 2 "FAILED"
-						rm -f .entry.c .entry.o .entry .main.c .main.o .main
-						continue
-					fi
-				fi
+			log 2 "Test support for -nostdlib flag"
+			if "$LD" $LDFLAGS_TEST -nostdlib -o .entry .entry.o; then
+				log 2 "OK"
+				LDFLAGS_TEST="$LDFLAGS_TEST -nostdlib"
 			else
-				if "$LD" -m32 $LDFLAGS_TEST -o .entry .entry.o 2> /dev/null; then
-					LDFLAGS_TEST="-m32 $LDFLAGS_TEST"
-					log 2 "OK"
-				elif "$LD" -target=${TARGET_ARCH}-none-elf $LDFLAGS_TEST -o .entry .entry.o 2> /dev/null; then
-					LDFLAGS_TEST="-target=${TARGET_ARCH}-none-elf $LDFLAGS_TEST"
-					log 2 "OK"
-				else
-					eval "ALTNAMES=\$${TARGET_ARCH}_ALTNAMES"
-					COMPATIBLE_ALTNAME=1
-					for ALTNAME in $ALTNAMES; do
-						if "$LD" -melf_${ALTNAME} $LDFLAGS_TEST -o .entry .entry.o 2> /dev/null; then
-							LDFLAGS_TEST="-melf_${ALTNAME} $LDFLAGS_TEST"
-							log 2 "OK"
-							COMPATIBLE_ALTNAME=0
-							break
-						fi
-					done
-					if [ "$COMPATIBLE_ALTNAME" -eq 1 ]; then
-						log 2 "FAILED"
-						rm -f .entry.c .entry.o .entry .main.c .main.o .main
-						continue
-					fi
-				fi
+				log 2 "FAILED"
+				continue
 			fi
 
-			if [ $USERSPACE_LINKER -eq 0 ]; then
-				log 2 "Attempt to use userspace linker to link freestanding binary"
-				if "$LD" -nostdlib $LDFLAGS_TEST -o .entry .entry.o; then
-					LDFLAGS_TEST="-nostdlib $LDFLAGS_TEST"
-					log 2 "OK"
-				else
-					log 2 "FAILED"
-					rm -f .entry.c .entry.o .entry .main.c .main.o .main
-					continue
-				fi
+			log 2 "Test linking static executable"
+			"$LD" $LDFLAGS_TEST -o .entry .entry.o
+			RESULT=$?
+			if [ $RESULT -ne 0 ]; then
+				log 2 "FAILED"
+				continue
 			fi
-			rm -f .entry.c .entry.o .entry .main.c .main.o .main
+			log 2 "OK"
+
+			log 1 "PASSED $LD"
 
 			LDFLAGS="$LDFLAGS_TEST"
 			FOUND="yes"
 			break
 		done
 	done
+	rm -f .entry.c .entry.o .entry
 
 	if [ -z "$FOUND" ]; then
 		log 0 "Failed to locate compatible LD"
@@ -495,29 +446,30 @@ if [ -z "$AR_FOUND" ]; then
 			# run tests
 			log 1 "Linking ELF library..."
 			echo "void test(void) {}" > .artest.c
-			echo "void _start(void) {}" > .driver.c
+			echo "void test(void);void _start(void) {test();}" > .driver.c
 			"$CC" $CFLAGS -c -o .artest.o .artest.c
-			"$AR" $ARFLAGS_TEST libtest.a .artest.o 2> /dev/null > /dev/null
+			"$AR" $ARFLAGS_TEST libtest.a .artest.o
+			#~ "$AR" $ARFLAGS_TEST libtest.a .artest.o 2> /dev/null > /dev/null
 			if [ $? -ne 0 ]; then
-				rm -f .artest.c .driver.c .artest.o libtest.a
 				log 1 "Failed"
 				continue
 			fi
 			"$CC" $CFLAGS -c -o .driver.o .driver.c
 			"$LD" $LDFLAGS -L. -o .test .driver.o -ltest
-			TMP=$?
-			rm -f .artest.c .driver.c .artest.o .driver.o libtest.a .test
-			if [ $TMP -ne 0 ]; then
+			if [ $? -ne 0 ]; then
 				log 1 "Failed"
 				continue
 			fi
 			log 1 "OK"
+
+			log 2 "PASSED $AR"
 
 			ARFLAGS="$ARFLAGS_TEST"
 			FOUND="yes"
 			break
 		done
 	done
+	rm -f .artest.c .driver.c .artest.o .driver.o libtest.a .test
 
 	if [ -z "$FOUND" ]; then
 		log 0 "Failed to locate compatible AR"

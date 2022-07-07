@@ -11,4 +11,6 @@ dev_init(void)
 	for (b = bus_root; *b != NULL; b++) {
 
 	}
+
+	return 0;
 }
