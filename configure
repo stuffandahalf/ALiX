@@ -125,7 +125,11 @@ if [ -z "$CONFIGURED" ]; then
 	KERNEL_FORMAT=""
 	export KERNEL_FORMAT
 
-	while getopts 'A:B:F:vh' opt; do
+	#~ OUTPUT_DIR="`basedir "$0"`"
+	INSTALL_DIR="~/"
+	export INSTALL_DIR
+
+	while getopts 'A:B:F:i:vh' opt; do
 		case $opt in
 			(A)
 				ARCH_ARG=$OPTARG
@@ -133,6 +137,8 @@ if [ -z "$CONFIGURED" ]; then
 				;;
 			(B) BUILD_DIR=$OPTARG;;
 			(F) KERNEL_FORMAT=$OPTARG;;
+			(o) OUTPUT_DIR="$OPTARG";;
+			(i) INSTALL_DIR="$OPTARG";;
 			(v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
 			(h) usage "$0"; exit 1;;
 			(?) usage "$0" >&2; exit 1;;
@@ -372,29 +378,32 @@ if [ -z "$LD_FOUND" ]; then
 
 			# generate test files
 			echo "void _start(void) {}" > .entry.c
-			"$CC" $CFLAGS -c -o .entry.o .entry.c
+			"$CC" $CFLAGS -c -o .entry.o .entry.c > /dev/null 2>&1
+
+			if [ "$LD_BRAND" == "clang" -o "$LD_BRAND" == "gnu" ]; then
+				LDFLAGS_TEST="$LDFLAGS_TEST -nostdlib"
+			fi
 
 			if [ "$LD_BRAND" == "clang" ]; then
 				LDFLAGS_TEST="$LDFLAGS_TEST --target=${TARGET_ARCH}-none-elf"
 			fi
 
-			log 2 "Test support for -nostdlib flag"
-			if "$LD" $LDFLAGS_TEST -nostdlib -o .entry .entry.o; then
-				log 2 "OK"
-				LDFLAGS_TEST="$LDFLAGS_TEST -nostdlib"
-			else
-				log 2 "FAILED"
-				continue
-			fi
-
 			log 2 "Test linking static executable"
-			"$LD" $LDFLAGS_TEST -o .entry .entry.o
-			RESULT=$?
-			if [ $RESULT -ne 0 ]; then
+			"$LD" $LDFLAGS_TEST -o .entry .entry.o > /dev/null 2>&1
+			if [ $? -ne 0 ]; then
 				log 2 "FAILED"
-				continue
+
+				log 2 "Test linking static executable with -m32 flag"
+				if "$LD" $LDFLAGS_TEST -m32 -o .entry .entry.o > /dev/null 2>&1; then
+					log 2 "OK"
+					LDFLAGS_TEST="$LDFLAGS_TEST -m32"
+				else
+					log 2 "FAILED"
+					continue
+				fi
+			else
+				log 2 "OK"
 			fi
-			log 2 "OK"
 
 			log 1 "PASSED $LD"
 
@@ -447,15 +456,14 @@ if [ -z "$AR_FOUND" ]; then
 			log 1 "Linking ELF library..."
 			echo "void test(void) {}" > .artest.c
 			echo "void test(void);void _start(void) {test();}" > .driver.c
-			"$CC" $CFLAGS -c -o .artest.o .artest.c
-			"$AR" $ARFLAGS_TEST libtest.a .artest.o
-			#~ "$AR" $ARFLAGS_TEST libtest.a .artest.o 2> /dev/null > /dev/null
+			"$CC" $CFLAGS -c -o .artest.o .artest.c > /dev/null 2>&1
+			"$AR" $ARFLAGS_TEST libtest.a .artest.o > /dev/null 2>&1
 			if [ $? -ne 0 ]; then
 				log 1 "Failed"
 				continue
 			fi
-			"$CC" $CFLAGS -c -o .driver.o .driver.c
-			"$LD" $LDFLAGS -L. -o .test .driver.o -ltest
+			"$CC" $CFLAGS -c -o .driver.o .driver.c > /dev/null 2>&1
+			"$LD" $LDFLAGS -L. -o .test .driver.o -ltest > /dev/null 2>&1
 			if [ $? -ne 0 ]; then
 				log 1 "Failed"
 				continue
@@ -606,6 +614,15 @@ for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 	emit "\n"
 	emit_target_deps $TARGET_SOURCES
 done
+emit "install: all\n"
+for TARGET in $TARGETS; do
+	TARGET_VAR=`var_name "$TARGET"`
+	eval "TARGET_INSTALL_DIR=\"\$${TARGET_VAR}_INSTALL_DIR\""
+	if [ ! -z "$TARGET_INSTALL_DIR" ]; then
+		emit "\tinstall \"$TARGET\" \"$INSTALL_DIR$TARGET_INSTALL_DIR\"\n"
+	fi
+done
+emit "\n"
 emit "clean:\n"
 for SUBDIR in $SUBDIRS; do
 	emit "\tcd \"$SUBDIR\" && \$(MAKE) clean\n"
