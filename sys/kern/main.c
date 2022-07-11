@@ -1,6 +1,10 @@
+#include <stddef.h>
+#include <stdint.h>
+
 unsigned char *const framebuffer = (unsigned char *)0xb8000;
 
-
+extern const size_t bus_root_count;
+void printul(uint32_t, uint8_t);
 
 void
 main(void)
@@ -12,6 +16,8 @@ main(void)
 		framebuffer[i++] = *c;
 		framebuffer[i++] = 0xf0;
 	}
+
+	printul(bus_root_count, 10);
 
 	/* enumerate/initialize available devices */
 	/* ensure interrupts are set up */
