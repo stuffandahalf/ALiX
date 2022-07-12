@@ -169,6 +169,7 @@ shift `dc -e "$OPTIND 1 - p"`
 CC_CANDIDATES="c99 cc clang gcc"
 LD_CANDIDATES="ld ld.bfd ld.lld ld.gold ld.mold"
 AR_CANDIDATES="ar llvm-ar gcc-ar"
+OBJCOPY_CANDIDATES="objcopy llvm-objcopy"
 eval "TOOLCHAIN_ARCHS=\"\$${TARGET_ARCH}_ALTNAMES\""
 eval "COMPATIBLE_TOOLCHAINS=\"\$${TARGET_ARCH}_COMPATIBLE_TOOLCHAINS\""
 for TC_COMPAT in $COMPATIBLE_TOOLCHAINS; do
@@ -181,6 +182,7 @@ for TC_ARCH in $TOOLCHAIN_ARCHS; do
 	CC_CANDIDATES="$CC_CANDIDATES $TC_ARCH-elf-gcc $TC_ARCH-elf-none-gcc $TC_ARCH-elf-alix-gcc"
 	LD_CANDIDATES="$LD_CANDIDATES $TC_ARCH-elf-ld $TC_ARCH-elf-none-ld $TC_ARCH-elf-alix-ld $TC_ARCH-elf-ld.bfd $TC_ARCH-elf-none-ld.bfd $TC_ARCH-elf-alix-ld.bfd"
 	AR_CANDIDATES="$AR_CANDIDATES $TC_ARCH-elf-ar $TC_ARCH-elf-none-ar $TC_ARCH-elf-alix-ar"
+	OBJCOPY_CANDIDATES="$OBJCOPY_CANDIDATES $TC_ARCH-elf-objcopy $TC_ARCH-elf-none-objcopy $TC_ARCH-elf-alix-objcopy"
 done
 
 # determine CC
@@ -488,6 +490,80 @@ if [ -z "$AR_FOUND" ]; then
 	export AR_FOUND
 	export AR
 	export ARFLAGS
+fi
+
+if [ -z $OBJCOPY_FOUND ]; then
+	if [ "$OBJCOPY" ]; then
+		OBJCOPY_CANDIDATES=`basename \`which "$OBJCOPY"\``
+		OBJCOPY_PATHS=`dirname \`which "$OBJCOPY"\``
+	else
+		OBJCOPY_PATHS="$PATHS"
+	fi
+	FOUND=
+
+	for DIR in `path_dirs "$OBJCOPY_PATHS"`; do
+		if [ ! -z "$FOUND" ]; then
+			break
+		fi
+
+		log 2 "Checking \"$DIR\" for objcopy candidates"
+		for CANDIDATE in $OBJCOPY_CANDIDATES; do
+			OBJCOPY="$DIR/$CANDIDATE"
+			OBJCOPYFLAGS_TEST="$OBJCOPY_FLAGS"
+			OBJCOPY_TEST_FILES=
+			if [ ! -x "$OBJCOPY" ]; then
+				continue
+			fi
+
+			log 1 "TESTING \"$OBJCOPY\""
+			
+			log 2 "GENERATING test executable"
+			OBJCOPY_TEST_FILES="$OBJCOPY_TEST_FILES .exec.c .exec.o .exec.elf"
+			echo "void _start(void) {}" > .exec.c
+			"$CC" $CFLAGS -c -o .exec.o .exec.c && "$LD" $LDFLAGS -o .exec.elf .exec.o
+			if [ $? -ne 0 ]; then
+				rm -f $OBJCOPY_TEST_FILES
+				log 2 "FAILED"
+				continue
+			fi
+			log 2 "OK"
+
+			log 2 "CONVERT test executable to binary"
+			OBJCOPY_TEST_FILES="$OBJCOPY_TEST_FILES .exec.bin"
+			"$OBJCOPY" $OBJCOPYFLAGS_TEST -O binary .exec.elf .exec.bin
+			if [ $? -ne 0 ]; then
+				rm -f $OBJCOPY_TEST_FILES
+				log 2 "FAILED"
+				continue
+			fi
+			log 2 "OK"
+
+#			log 2 "CONVERT test executable to COFF"
+#			OBJCOPY_TEST_FILES="$OBJCOPY_TEST_FILES .exec.coff"
+#			"$OBJCOPY" $OBJCOPYFLAGS_TEXT -O ecoff .exec.elf .exec.coff
+#			if [ $? -ne 0 ]; then
+#				rm -f $OBJCOPY_TEST_FILES
+#				log 2 "FAILED"
+#				continue
+#			fi
+#			log 2 "OK"
+
+			log 1 "PASSED \"$OBJCOPY\""
+			FOUND=1
+			rm -f $OBJCOPY_TEST_FILES
+		done
+	done
+	if [ -z "$FOUND" ]; then
+		log 2 "FAILED to locate compatible objcopy tool"
+		log 2 "CONTINUING, but configuring targets that require objcopy will fail"
+	else
+		OBJCOPY_FOUND=1
+		OBJCOPYFLAGS="$OBJCOPYFLAGS_TEST"
+
+		export OBJCOPY_FOUND
+		export OBJCOPY
+		export OBJCOPYFLAGS
+	fi
 fi
 
 # Determine current directory
