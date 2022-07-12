@@ -551,6 +551,7 @@ if [ -z $OBJCOPY_FOUND ]; then
 			log 1 "PASSED \"$OBJCOPY\""
 			FOUND=1
 			rm -f $OBJCOPY_TEST_FILES
+			break
 		done
 	done
 	if [ -z "$FOUND" ]; then
@@ -643,21 +644,41 @@ for TARGET in $TARGETS; do
 	eval "TARGET_CFLAGS=\${${TARGET_VAR}_CFLAGS}"
 	eval "TARGET_LDFLAGS=\${${TARGET_VAR}_LDFLAGS}"
 	eval "TARGET_LIBS=\${${TARGET_VAR}_LIBS}"
+	eval "TARGET_OUTPUT_FORMAT=\${${TARGET_VAR}_OUTPUT_FORMAT}"
 	eval "LIB_LOOKUP_DIRS=\${${TARGET_VAR}_LIB_LOOKUP_DIRS}"
+	TARGET_ARTIFACTS="$TARGET_ARTIFACTS $TARGET"
+	if [ "$TARGET_OUTPUT_FORMAT" -a "$TARGET_OUTPUT_FORMAT" != "elf" ]; then
+		TARGET_OUTPUT_FORMAT_DIFF=1
+		TARGET_ARTIFACTS="$TARGET_ARTIFACTS $TARGET.elf"
+	fi
 	OBJECTS="`src2obj $TARGET_SOURCES`"
 	#BUILD_SOURCES="$BUILD_SOURCES $TARGET_SOURCES"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
-	emit "$TARGET: subdirs $TARGET_LIBS $OBJECTS $TARGET_EXTRA_DEPS\n"
+#	emit "$TARGET: subdirs $TARGET_LIBS $OBJECTS $TARGET_EXTRA_DEPS\n"
+	emit "$TARGET"
+	if [ "$TARGET_OUTPUT_FORMAT_DIFF" ]; then	
+		emit ".elf"
+	fi
+	emit ": subdirs $TARGET_LIBS $OBJECTS $TARGET_EXTRA_DEPS\n"
 	emit "\t\"${LD}\" $LDFLAGS $TARGET_LDFLAGS \$(ALIX_LDFLAGS)"
 	for LIB_LOOKUP_DIR in $LIB_LOOKUP_DIRS; do
 		emit " -L$LIB_LOOKUP_DIR"
 	done
-	emit " -o$TARGET $OBJECTS"
+	#emit " -o$TARGET $OBJECTS"
+	emit " -o$TARGET"
+	if [ "$TARGET_OUTPUT_FORMAT_DIFF" ]; then
+		emit ".elf"
+	fi
+	emit " $OBJECTS"
 	for LIB in $TARGET_LIBS; do
 		emit " -l$LIB"
 	done
 	emit "\n\n"
+	if [ "$TARGET_OUTPUT_FORMAT_DIFF" ]; then
+		emit "$TARGET: $TARGET.elf\n"
+		emit "\t\"${OBJCOPY}\" $OBJCOPYFLAGS -O $TARGET_OUTPUT_FORMAT $TARGET.elf $TARGET\n\n"
+	fi
 	emit_target_deps $TARGET_SOURCES
 done
 for STATIC_LIB in $STATIC_LIB_TARGETS; do
@@ -706,7 +727,7 @@ done
 for ARTIFACT in $BUILD_ARTIFACTS; do
 	emit "\trm -f $ARTIFACT\n"
 done
-for TARGET in $TARGETS; do
+for TARGET in $TARGET_ARTIFACTS; do
 	emit "\trm -f $TARGET\n"
 done
 for STATIC_LIB in $STATIC_LIB_TARGETS; do
