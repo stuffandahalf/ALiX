@@ -268,6 +268,7 @@ if [ -z "$CC_FOUND" ]; then
 						log 1 "FAILED"
 						continue
 					fi
+					CFLAGS_TEST="--target=$TARGET_ARCH-none-elf $CFLAGS_TEST"
 				else
 					rm -f .filefmt.c .filefmt.o
 					log 1 "FAILED"
