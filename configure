@@ -23,7 +23,7 @@
 
 # functions to simplify makefile generation
 usage() {
-	printf "usage: %s [-A architecture] [-B build dir] [-F kernel format] [-v+] [-h]\n" $1
+	printf "usage: %s [-A architecture] [-M machine] [-B build dir] [-F kernel format] [-v+] [-h]\n" $1
 }
 
 log() {
@@ -80,15 +80,6 @@ emit_target_deps() {
 	done
 }
 
-test_file_arch() {
-	for ARCH in $ALTNAMES; do
-		if file "$1" | grep -i "$ARCH" > /dev/null; then
-			return 0
-		fi
-	done
-	return 1
-}
-
 var_name() {
 	for F in $@; do
 		echo "$F" | sed -e "s/[^a-zA-Z0-9_]/_/"
@@ -99,8 +90,8 @@ var_name() {
 IN_MAKEFILE=make.conf
 IN_PREDEF_MAKEFILE=make.predef.conf
 OUT_MAKEFILE=makefile
-REQUIRED_C_STANDARD=1
-export REQUIRED_C_STANDARD
+SRC_ROOT="`cd \`dirname $0\` && pwd`"
+REQUIRED_C_STANDARD="c99"
 
 SUPPORTED_ARCHS="i386 amd64 ppc ppc64 armv6 aarch64 riscv32 riscv64"
 i386_ALTNAMES="i386 i486 i586 i686 i86pc 80386 80486 80586 80686"
@@ -124,12 +115,14 @@ if [ -z "$CONFIGURED" ]; then
 	export BUILD_PREFIX
 	KERNEL_FORMAT=""
 	export KERNEL_FORMAT
+	OBJ_DIR="$SRC_ROOT/obj"
+	export OBJ_DIR
 
 	#~ OUTPUT_DIR="`basedir "$0"`"
 	INSTALL_DIR="~/"
 	export INSTALL_DIR
 
-	while getopts 'A:B:F:i:vh' opt; do
+	while getopts 'A:B:F:hi:M:v' opt; do
 		case $opt in
 			(A)
 				ARCH_ARG=$OPTARG
@@ -137,10 +130,11 @@ if [ -z "$CONFIGURED" ]; then
 				;;
 			(B) BUILD_DIR=$OPTARG;;
 			(F) KERNEL_FORMAT=$OPTARG;;
-			(o) OUTPUT_DIR="$OPTARG";;
-			(i) INSTALL_DIR="$OPTARG";;
-			(v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
 			(h) usage "$0"; exit 1;;
+			(i) INSTALL_DIR="$OPTARG";;
+			(M) MACHINE="$OPTARG";;
+			(o) OBJ_DIR="$OPTARG";;
+			(v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
 			(?) usage "$0" >&2; exit 1;;
 		esac
 	done
@@ -165,419 +159,59 @@ if [ -z "$CONFIGURED" ]; then
 fi
 shift `dc -e "$OPTIND 1 - p"`
 
-# set up tool paths and names to search for
-CC_CANDIDATES="c99 cc clang gcc"
-LD_CANDIDATES="ld ld.bfd ld.lld ld.gold ld.mold"
-AR_CANDIDATES="ar llvm-ar gcc-ar"
-OBJCOPY_CANDIDATES="objcopy llvm-objcopy"
-eval "TOOLCHAIN_ARCHS=\"\$${TARGET_ARCH}_ALTNAMES\""
-eval "COMPATIBLE_TOOLCHAINS=\"\$${TARGET_ARCH}_COMPATIBLE_TOOLCHAINS\""
-for TC_COMPAT in $COMPATIBLE_TOOLCHAINS; do
-	eval "ALTNAMES=\"\$${TC_COMPAT}_ALTNAMES\""
-	for ALTNAME in $ALTNAMES; do
-		TOOLCHAIN_ARCHS="$TOOLCHAIN_ARCHS $ALTNAME"
-	done
-done
-for TC_ARCH in $TOOLCHAIN_ARCHS; do
-	CC_CANDIDATES="$CC_CANDIDATES $TC_ARCH-elf-gcc $TC_ARCH-elf-none-gcc $TC_ARCH-elf-alix-gcc"
-	LD_CANDIDATES="$LD_CANDIDATES $TC_ARCH-elf-ld $TC_ARCH-elf-none-ld $TC_ARCH-elf-alix-ld $TC_ARCH-elf-ld.bfd $TC_ARCH-elf-none-ld.bfd $TC_ARCH-elf-alix-ld.bfd"
-	AR_CANDIDATES="$AR_CANDIDATES $TC_ARCH-elf-ar $TC_ARCH-elf-none-ar $TC_ARCH-elf-alix-ar"
-	OBJCOPY_CANDIDATES="$OBJCOPY_CANDIDATES $TC_ARCH-elf-objcopy $TC_ARCH-elf-none-objcopy $TC_ARCH-elf-alix-objcopy"
-done
+# Configure paths to required tools
+if [ -z "$LLVM_PREFIX" ]; then
+	LLVM_PREFIX="$OBJ_DIR/tools/llvm"
+	export LLVM_PREFIX
 
-# determine CC
-if [ -z "$CC_FOUND" ]; then
-	if [ "$CC" ]; then
-		CC_CANDIDATES="`basename \`which "$CC"\``"
-		CC_CANDIDATE_PATHS="`dirname \`which "$CC"\``"
-	else
-		CC_CANDIDATE_PATHS="$PATHS"
-	fi
-	FOUND=""
-	for DIR in `path_dirs "$CC_CANDIDATE_PATHS"`; do
-		if [ ! -z "$FOUND" ]; then
-			break
-		fi
-
-		log 2 "CHECKING \"$DIR\" for CC candidates"
-		for CANDIDATE in $CC_CANDIDATES; do
-			CC="$DIR/$CANDIDATE"
-			CFLAGS_TEST="$CFLAGS"
-			if [ ! -x "$CC" ]; then
-				continue
-			fi
-			log 1 "TESTING \"$CC\""
-
-			# Check brand of C compiler
-			log 1 "C compiler brand..."
-			if "$CC" $CFLAGS_TEST -v 2>&1 | grep -i "clang" > /dev/null; then
-				CC_BRAND=clang
-			elif "$CC" $CFLAGS_TEST -v 2>&1 | grep -i "gcc" > /dev/null; then
-				CC_BRAND=gcc
-			elif [ `basename "$CC"` = "c99" ]; then
-				CC_BRAND=posix
-			fi
-			log 1 "$CC_BRAND"
-
-			# check if compiler automatically imports headers
-			log 1 "Checking if C compiler provides stdlib headers..."
-			printf "#include <stdio.h>\n" > .stdinc.c
-			"$CC" $CFLAGS_TEST -c .stdinc.c 2> /dev/null
-			TMP=$?
-			if [ $TMP -eq 0 ]; then
-				case "$CC_BRAND" in
-					gcc)
-						CFLAGS_TEST="-nostdinc -ffreestanding $CFLAGS_TEST"
-						;;
-					clang)
-						CFLAGS_TEST="-nostdinc -ffreestanding $CFLAGS_TEST"
-						;;
-					# otherwise, default headers imported, but should be avoided if possible
-					#*)
-					#	log 1 "FAILED"
-					#	break
-					#	;;
-				esac
-			fi
-			rm -f .stdinc.c .stdinc.o
-			log 1 "OK"
-
-			# check default target of compiler
-			#log 1 "Default C compiler target..."
-			#CC_TARGET=`"$CC" $CFLAGS_TEST -v 2>&1 | grep -i "^target" | cut -d' ' -f2 | cut -d'-' -f1`
-			#if [ $? -ne 0 ]; then
-			#	log 1 "FAILED"
-			#	break
-			#fi
-			#log 1 "$CC_TARGET"
-
-			# verify if compiler target matches requested target
-			# if not, attempt to set CFLAGS to change target
-
-			# Test for ELF output fomat
-			log 1 "Executable format test..."
-			printf "int main(int argc,char **argv){return 0;}\n" > .filefmt.c
-			"$CC" $CFLAGS_TEST -c .filefmt.c
-			EXPECTED_ELF_MAGIC=`printf '\177ELF'`
-			ACTUAL_ELF_MAGIC=`head -c 4 .filefmt.o`
-			if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
-				if [ "$CC_BRAND" = "clang" ] && "$CC" --target=$TARGET_ARCH-none-elf $CFLAGS_TEST -c .filefmt.c; then
-					ACTUAL_ELF_MAGIC=`head -c 4 .filefmt.o`
-					if [ "$EXPECTED_ELF_MAGIC" != "$ACTUAL_ELF_MAGIC" ]; then
-						rm -f .filefmt.c .filefmt.o
-						log 1 "FAILED"
-						continue
-					fi
-					CFLAGS_TEST="--target=$TARGET_ARCH-none-elf $CFLAGS_TEST"
-				else
-					rm -f .filefmt.c .filefmt.o
-					log 1 "FAILED"
-					continue
-				fi
-			fi
-			log 1 "OK"
-
-			log 1 "Output file architecture test..."
-			CC_OUTPUT_COMPATIBLE=0
-			eval "ALTNAMES=\"\${${TARGET_ARCH}_ALTNAMES}\""
-			test_file_arch .filefmt.o
-			CC_OUTPUT_COMPATIBLE=$?
-
-			if [ $CC_OUTPUT_COMPATIBLE -ne 0 ]; then
-				if "$CC" -m32 $CFLAGS_TEST -c .filefmt.c && test_file_arch .filefmt.o; then
-					CC_OUTPUT_COMPATIBLE=0
-					if [ $CC_OUTPUT_COMPATIBLE -eq 0 ]; then
-						CFLAGS_TEST="-m32 $CFLAGS_TEST"
-					fi
-				elif [ "$CC_BRAND" == "clang" ] && \
-						"$CC" --target=$TARGET_ARCH-none-elf $CFLAGS_TEST -c .filefmt.c && \
-						test_file_arch .filefmt.o; then
-					CC_OUTPUT_COMPATIBLE=0
-					if [ $CC_OUTPUT_COMPATIBLE -eq 0 ]; then
-						CFLAGS_TEST="--target=$TARGET_ARCH-none-elf $CFLAGS_TEST"
-					fi
-				fi
-			fi
-
-			rm -f .filefmt.c .filefmt.o
-			if [ $CC_OUTPUT_COMPATIBLE -ne 0 ]; then
-				log 1 "FAILED"
-				continue
-			fi
-			log 1 "OK"
-
-			# Test C standard
-			log 1 "Standard C test..."
-			printf "#if !defined(__STDC__)\n0\n#elif defined(__STDC_VERSION__)\n__STDC_VERSION__\n#else\n1\n#endif\n" > .std.c
-			CC_STD=`"$CC" $CFLAGS_TEST -E .std.c | grep '^[0-9]' | sed -e 's/L$//'`
-			rm -f .std.c
-			if [ "$CC_STD" -lt "$REQUIRED_C_STANDARD" ]; then
-				log 1 "FAILED"
-				break
-			fi
-			log 1 "OK ($CC_STD)"
-
-			log 1 "PASSED $CC"
-
-			CFLAGS="$CFLAGS_TEST"
-			FOUND="yes"
-			break
-		done
-	done
-
-	if [ -z "$FOUND" ]; then
-		log 0 "Failed to locate compatible CC"
-		exit 1
-	fi
-
-	CC_FOUND=1
-	export CC_FOUND
+	NEED_LLVM=1
+	export NEED_LLVM
+fi
+if [ -z "$CC" ]; then
+	CC="$LLVM_PREFIX/bin/clang"
 	export CC
+
+	# Set C compilation flags
+	CFLAGS="--target=$TARGET_ARCH-none-elf -nostdinc -nostdlib -ffreestanding $CFLAGS"
+	if [ "$REQUIRED_C_STANDARD" ]; then
+		CFLAGS="-std=$REQUIRED_C_STANDARD $CFLAGS"
+	fi
 	export CFLAGS
 fi
 
-# determine LD
-if [ -z "$LD_FOUND" ]; then
-	if [ $LD ]; then
-		LD_CANDIDATES="`basename \`which "$LD"\``"
-		LD_PATHS="`dirname \`which $LD\``"
-	else
-		LD_CANDIDATES="`basename "$CC"` $LD_CANDIDATES"
-		LD_PATHS="`dirname "$CC"` $PATHS"
-	fi
-	FOUND=""
-
-	for DIR in `path_dirs $LD_PATHS`; do
-		if [ ! -z "$FOUND" ]; then
-			break
-		fi
-
-		log 2 "CHECKING \"$DIR\" for LD candidates"
-
-		for CANDIDATE in $LD_CANDIDATES; do
-			LD="$DIR/$CANDIDATE"
-			LDFLAGS_TEST="$LDFLAGS"
-
-			if [ ! -x $LD ]; then
-				continue
-			fi
-
-			log 1 "TESTING \"$LD\""
-
-			log 2 "Detecting linker brand"
-			if "$LD" $LDFLAGS_TEST -v 2>&1 | grep -i "lld" > /dev/null; then
-				LD_BRAND=llvm
-			elif "$LD" $LDFLAGS_TEST -v 2>&1 | grep -i "clang" > /dev/null; then
-				LD_BRAND=clang
-			elif "$LD" $LDFLAGS_TEST -v 2>&1 | grep -i "gnu" > /dev/null; then
-				LD_BRAND=gnu
-			elif [ `basename "$LD"` = "ld" ]; then
-				LD_BRAND=posix
-			else
-				log 2 "FAILED"
-				continue
-			fi
-			log 2 "$LD_BRAND"
-
-			# generate test files
-			echo "void _start(void) {}" > .entry.c
-			"$CC" $CFLAGS -c -o .entry.o .entry.c > /dev/null 2>&1
-
-			if [ "$LD_BRAND" == "clang" -o "$LD_BRAND" == "gnu" ]; then
-				LDFLAGS_TEST="$LDFLAGS_TEST -nostdlib"
-			fi
-
-			if [ "$LD_BRAND" == "clang" ]; then
-				LDFLAGS_TEST="$LDFLAGS_TEST --target=${TARGET_ARCH}-none-elf"
-			fi
-
-			log 2 "Test linking static executable"
-			"$LD" $LDFLAGS_TEST -o .entry .entry.o > /dev/null 2>&1
-			if [ $? -ne 0 ]; then
-				log 2 "FAILED"
-
-				log 2 "Test linking static executable with -m32 flag"
-				if "$LD" $LDFLAGS_TEST -m32 -o .entry .entry.o > /dev/null 2>&1; then
-					log 2 "OK"
-					LDFLAGS_TEST="$LDFLAGS_TEST -m32"
-				else
-					log 2 "FAILED"
-					continue
-				fi
-			else
-				log 2 "OK"
-			fi
-
-			log 1 "PASSED $LD"
-
-			LDFLAGS="$LDFLAGS_TEST"
-			FOUND="yes"
-			break
-		done
-	done
-	rm -f .entry.c .entry.o .entry
-
-	if [ -z "$FOUND" ]; then
-		log 0 "Failed to locate compatible LD"
-		exit 1
-	fi
-
-	LD_FOUND=1
-	export LD_FOUND
+if [ -z "$LD" ]; then
+	LD="$LLVM_PREFIX/bin/ld.lld"
 	export LD
 	export LDFLAGS
 fi
 
-# determine AR
-if [ -z "$AR_FOUND" ]; then
-	if [ "$AR" ]; then
-		AR_CANDIDATES="`basename \`which "$AR"\``"
-		AR_PATHS="`dirname \`which "$AR"\``"
-	else
-		AR_PATHS="$PATHS"
-	fi
-	FOUND=""
-
-	for DIR in `path_dirs "$AR_PATHS"`; do
-		if [ ! -z "$FOUND" ]; then
-			break
-		fi
-
-		log 2 "CHECKING \"$DIR\" for AR candidates"
-
-		for CANDIDATE in $AR_CANDIDATES; do
-			AR="$DIR/$CANDIDATE"
-			ARFLAGS_TEST="$ARFLAGS -rvs"
-
-			if [ ! -x "$AR" ]; then
-				continue
-			fi
-
-			log 1 "TESTING \"$AR\""
-
-			# run tests
-			log 1 "Linking ELF library..."
-			echo "void test(void) {}" > .artest.c
-			echo "void test(void);void _start(void) {test();}" > .driver.c
-			"$CC" $CFLAGS -c -o .artest.o .artest.c > /dev/null 2>&1
-			"$AR" $ARFLAGS_TEST libtest.a .artest.o > /dev/null 2>&1
-			if [ $? -ne 0 ]; then
-				log 1 "Failed"
-				continue
-			fi
-			"$CC" $CFLAGS -c -o .driver.o .driver.c > /dev/null 2>&1
-			"$LD" $LDFLAGS -L. -o .test .driver.o -ltest > /dev/null 2>&1
-			if [ $? -ne 0 ]; then
-				log 1 "Failed"
-				continue
-			fi
-			log 1 "OK"
-
-			log 2 "PASSED $AR"
-
-			ARFLAGS="$ARFLAGS_TEST"
-			FOUND="yes"
-			break
-		done
-	done
-	rm -f .artest.c .driver.c .artest.o .driver.o libtest.a .test
-
-	if [ -z "$FOUND" ]; then
-		log 0 "Failed to locate compatible AR"
-		exit 1
-	fi
-
-	AR_FOUND=1
-	export AR_FOUND
+if [ -z "$AR" ]; then
+	AR="$LLVM_PREFIX/bin/llvm-ar"
 	export AR
+
+	ARFLAGS="-rvs $ARFLAGS"
 	export ARFLAGS
 fi
 
-if [ -z $OBJCOPY_FOUND ]; then
-	if [ "$OBJCOPY" ]; then
-		OBJCOPY_CANDIDATES=`basename \`which "$OBJCOPY"\``
-		OBJCOPY_PATHS=`dirname \`which "$OBJCOPY"\``
-	else
-		OBJCOPY_PATHS="$PATHS"
-	fi
-	FOUND=
-
-	for DIR in `path_dirs "$OBJCOPY_PATHS"`; do
-		if [ ! -z "$FOUND" ]; then
-			break
-		fi
-
-		log 2 "Checking \"$DIR\" for objcopy candidates"
-		for CANDIDATE in $OBJCOPY_CANDIDATES; do
-			OBJCOPY="$DIR/$CANDIDATE"
-			OBJCOPYFLAGS_TEST="$OBJCOPY_FLAGS"
-			OBJCOPY_TEST_FILES=
-			if [ ! -x "$OBJCOPY" ]; then
-				continue
-			fi
-
-			log 1 "TESTING \"$OBJCOPY\""
-			
-			log 2 "GENERATING test executable"
-			OBJCOPY_TEST_FILES="$OBJCOPY_TEST_FILES .exec.c .exec.o .exec.elf"
-			echo "void _start(void) {}" > .exec.c
-			"$CC" $CFLAGS -c -o .exec.o .exec.c && "$LD" $LDFLAGS -o .exec.elf .exec.o
-			if [ $? -ne 0 ]; then
-				rm -f $OBJCOPY_TEST_FILES
-				log 2 "FAILED"
-				continue
-			fi
-			log 2 "OK"
-
-			log 2 "CONVERT test executable to binary"
-			OBJCOPY_TEST_FILES="$OBJCOPY_TEST_FILES .exec.bin"
-			"$OBJCOPY" $OBJCOPYFLAGS_TEST -O binary .exec.elf .exec.bin
-			if [ $? -ne 0 ]; then
-				rm -f $OBJCOPY_TEST_FILES
-				log 2 "FAILED"
-				continue
-			fi
-			log 2 "OK"
-
-#			log 2 "CONVERT test executable to COFF"
-#			OBJCOPY_TEST_FILES="$OBJCOPY_TEST_FILES .exec.coff"
-#			"$OBJCOPY" $OBJCOPYFLAGS_TEXT -O ecoff .exec.elf .exec.coff
-#			if [ $? -ne 0 ]; then
-#				rm -f $OBJCOPY_TEST_FILES
-#				log 2 "FAILED"
-#				continue
-#			fi
-#			log 2 "OK"
-
-			log 1 "PASSED \"$OBJCOPY\""
-			FOUND=1
-			rm -f $OBJCOPY_TEST_FILES
-			break
-		done
-	done
-	if [ -z "$FOUND" ]; then
-		log 2 "FAILED to locate compatible objcopy tool"
-		log 2 "CONTINUING, but configuring targets that require objcopy will fail"
-	else
-		OBJCOPY_FOUND=1
-		OBJCOPYFLAGS="$OBJCOPYFLAGS_TEST"
-
-		export OBJCOPY_FOUND
-		export OBJCOPY
-		export OBJCOPYFLAGS
-	fi
+if [ -z "$OBJCOPY" ]; then
+	OBJCOPY="$LLVM_PREFIX/bin/llvm-objcopy"
+	export OBJCOPY
+	export OBJCOPYFLAGS
 fi
 
 # Determine current directory
-DIR="$PWD/"
 if [ $# -gt 0 ]; then
-	DIR="$1"
+	_DIR="$1"
+	export _DIR
 fi
-export DIR
 
+DIR="$_DIR"
+if [ -z "$DIR" ]; then
+	DIR="$SRC_ROOT/"
+fi
 # import any configuration that should be applied to subdirectories
-if [ -f $DIR/$IN_PREDEF_MAKEFILE ]; then
-	. "$DIR/$IN_PREDEF_MAKEFILE"
+if [ -f "$DIR$IN_PREDEF_MAKEFILE" ]; then
+	. "$DIR$IN_PREDEF_MAKEFILE"
 fi
 
 # Lookup subdirectories
@@ -595,19 +229,18 @@ SUBDIRS=
 set -e
 
 # look for makefile configuration file
-
-if [ -f "$DIR/$OUT_MAKEFILE" ]; then
-	if [ ! -f "$DIR/$IN_MAKEFILE" ]; then
+if [ -f "$DIR$OUT_MAKEFILE" ]; then
+	if [ ! -f "$DIR$IN_MAKEFILE" ]; then
 		exit 0
-	elif [ "$DIR/$IN_MAKEFILE" -ot "$DIR/$OUT_MAKEFILE" ]; then
+	elif [ "$DIR$IN_MAKEFILE" -ot "$DIR$OUT_MAKEFILE" ]; then
 		exit 0
 	fi
-elif [ ! -f "$DIR/$IN_MAKEFILE" ]; then
+elif [ ! -f "$DIR$IN_MAKEFILE" ]; then
 	exit 1
 fi
 
 # Import directory make variables as shell variables
-. "$DIR/$IN_MAKEFILE"
+. "$DIR$IN_MAKEFILE"
 
 SUBDIR_TARGETS=
 for SUBDIR in $SUBDIRS; do
@@ -658,7 +291,7 @@ for TARGET in $TARGETS; do
 
 #	emit "$TARGET: subdirs $TARGET_LIBS $OBJECTS $TARGET_EXTRA_DEPS\n"
 	emit "$TARGET"
-	if [ "$TARGET_OUTPUT_FORMAT_DIFF" ]; then	
+	if [ "$TARGET_OUTPUT_FORMAT_DIFF" ]; then
 		emit ".elf"
 	fi
 	emit ": subdirs $TARGET_LIBS $OBJECTS $TARGET_EXTRA_DEPS\n"
