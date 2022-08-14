@@ -161,7 +161,7 @@ shift `dc -e "$OPTIND 1 - p"`
 
 # Configure paths to required tools
 if [ -z "$LLVM_PREFIX" ]; then
-	LLVM_PREFIX="$OBJ_DIR/tools/llvm"
+	LLVM_PREFIX="$OBJ_DIR/tools/bin"
 	export LLVM_PREFIX
 
 	NEED_LLVM=1
@@ -242,6 +242,17 @@ fi
 # Import directory make variables as shell variables
 . "$DIR$IN_MAKEFILE"
 
+for F in $CONFIG_FILES; do
+	eval "OUTFILE=\"\$`var_name $F`_OUTFILE\""
+	log 0 "CREATING $DIR$OUTFILE"
+	eval "echo \"`cat "$DIR$F"`\"" > "$DIR$OUTFILE"
+done
+
+# If local make config file set NO_MAKE, then skip makefile generation
+if [ $NO_MAKE ] && $NO_MAKE; then
+	exit 0
+fi
+
 SUBDIR_TARGETS=
 for SUBDIR in $SUBDIRS; do
 	SUBDIR_TARGETS="$SUBDIR.dir $SUBDIR_TARGETS"
@@ -255,8 +266,6 @@ if [ -e "$DIR$OUT_MAKEFILE" ]; then
 fi
 touch "$DIR$OUT_MAKEFILE"
 BUILD_ARTIFACTS=
-
-
 
 # write output file
 emit ".POSIX:\n"
