@@ -369,7 +369,7 @@ if [ -z "$LD_FOUND" ]; then
 				LD_BRAND=llvm
 			elif "$LD" $LDFLAGS_TEST -v 2>&1 | grep -i "clang" > /dev/null; then
 				LD_BRAND=clang
-			elif "$LD" $LDFLAGS_TEST -v 2>&1 | grep -i "gnu" > /dev/null; then
+			elif "$LD" $LDFLAGS_TEST -v 2>&1 | grep -i -E "(gnu|gcc)" > /dev/null; then
 				LD_BRAND=gnu
 			elif [ `basename "$LD"` = "ld" ]; then
 				LD_BRAND=posix
