@@ -1,0 +1,27 @@
+.POSIX:
+
+LLVM_SRC_URL="https://github.com/stuffandahalf/llvm-project/releases/download/llvmorg-12.0.0-alix-beta2/llvm-project-12.0.0-alix-beta2.tar.xz"
+
+all: llvm
+
+llvm: build configure
+	cd build && \$(MAKE) all install
+
+configure: src build
+	cd build && cmake ../src/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=\\\\\\"$OBJ_DIR/tools\\\\\\" -DLLVM_ENABLE_PROJECTS=\\\\\\"clang;lld\\\\\\"
+
+src: llvm-project-$LLVM_VERSION.tar.xz
+	tar -xvf llvm-project-$LLVM_VERSION.tar.xz
+	mv llvm-project-$LLVM_VERSION src
+
+llvm-project-$LLVM_VERSION.tar.xz:
+	curl -L -o llvm-project-$LLVM_VERSION.tar.xz https://github.com/stuffandahalf/llvm-project/releases/download/llvm-project-$LLVM_VERSION.tar.xz
+
+build:
+	mkdir build
+
+clean:
+	rm -f llvm-project-$LLVM_VERSION.tar.xz
+	rm -rf llvm-project-$LLVM_VERSION src
+	rm -rf build
+	

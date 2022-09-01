@@ -2,11 +2,15 @@
 
 all: cmake
 
-cmake: src
-	cd src && ./bootstrap --prefix=$OBJ_DIR/tools && \$(MAKE) all install
+cmake: bootstrap
+	cd src && \$(MAKE) all install
+
+bootstrap: src
+	cd src && ./bootstrap --prefix=$OBJ_DIR/tools
 
 src: cmake-$CMAKE_VERSION.tar.gz
-	tar -xvf cmake-$CMAKE_VERSION.tar.gz && mv cmake-$CMAKE_VERSION src
+	tar -xvf cmake-$CMAKE_VERSION.tar.gz
+	mv cmake-$CMAKE_VERSION src
 
 cmake-$CMAKE_VERSION.tar.gz:
 	curl -L -o cmake-$CMAKE_VERSION.tar.gz https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION.tar.gz
