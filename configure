@@ -122,7 +122,7 @@ if [ -z "$CONFIGURED" ]; then
 	INSTALL_DIR="~/"
 	export INSTALL_DIR
 
-	while getopts 'A:B:F:hi:M:v' opt; do
+	while getopts 'A:B:F:hi:j:M:v' opt; do
 		case $opt in
 			(A)
 				ARCH_ARG=$OPTARG
@@ -132,6 +132,16 @@ if [ -z "$CONFIGURED" ]; then
 			(F) KERNEL_FORMAT=$OPTARG;;
 			(h) usage "$0"; exit 1;;
 			(i) INSTALL_DIR="$OPTARG";;
+			(j)
+				if [ -n "$OPTARG" ]; then
+					JOB_COUNT="$OPTARG"
+					export JOB_COUNT
+					MAKE_JOBS="-j $OPTARG"
+					export MAKE_JOBS
+				else
+					echo "-j expects an integer value" >&2
+				fi
+				;;
 			(M) MACHINE="$OPTARG";;
 			(o) OBJ_DIR="$OPTARG";;
 			(v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
@@ -275,8 +285,9 @@ emit "\n"
 emit "subdirs: $SUBDIR_TARGETS"
 emit "\n\n"
 for SUBDIR in $SUBDIRS; do
-	emit "$SUBDIR.dir: $SUBDIR\n"
-	emit "\tcd \"$SUBDIR\" && \$(MAKE) all\n"
+	eval "SUBDIR_DEPS=\${${SUBDIR}_DEPENDENCIES}"
+	emit "$SUBDIR.dir: $SUBDIR_DEPS $SUBDIR\n"
+	emit "\tcd \"$SUBDIR\" && \$(MAKE) $MAKE_JOBS all\n"
 	emit "\n"
 done
 for TARGET in $TARGETS; do

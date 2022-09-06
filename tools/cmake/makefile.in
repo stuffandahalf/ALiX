@@ -1,22 +1,25 @@
 .POSIX:
 
+SRC_DIR=cmake-$CMAKE_VERSION
+ARCHIVE=cmake-$CMAKE_VERSION.tar.gz
+CMAKE_SRC_URL=https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/\$(ARCHIVE)
+
 all: cmake
 
 cmake: bootstrap
-	cd src && \$(MAKE) all install
+	cd \$(SRC_DIR) && \$(MAKE) $MAKE_JOBS all install
 
-bootstrap: src
-	cd src && ./bootstrap --prefix=$OBJ_DIR/tools
+bootstrap: \$(SRC_DIR)
+	cd \$(SRC_DIR) && ./bootstrap `eval "test \"$JOB_COUNT\" && echo \"--parallel=$JOB_COUNT\""` --prefix=$OBJ_DIR/tools
 
-src: cmake-$CMAKE_VERSION.tar.gz
+\$(SRC_DIR): cmake-$CMAKE_VERSION.tar.gz
 	tar -xvf cmake-$CMAKE_VERSION.tar.gz
-	mv cmake-$CMAKE_VERSION src
 
-cmake-$CMAKE_VERSION.tar.gz:
-	curl -L -o cmake-$CMAKE_VERSION.tar.gz https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION.tar.gz
+\$(ARCHIVE):
+	curl -L -o \$(ARCHIVE) \$(CMAKE_SRC_URL)
 
 clean:
-	rm -f cmake-$CMAKE_VERSION.tar.gz
-	rm -rf cmake-$CMAKE_VERSION src
+	rm -f \$(ARCHIVE)
+	rm -rf \$(SRC_DIR)
 	rm -rf cmake
 
