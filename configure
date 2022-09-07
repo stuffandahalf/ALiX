@@ -136,7 +136,7 @@ if [ -z "$CONFIGURED" ]; then
 				if [ -n "$OPTARG" ]; then
 					JOB_COUNT="$OPTARG"
 					export JOB_COUNT
-					MAKE_JOBS="-j $OPTARG"
+					MAKE_JOBS="-j$OPTARG"
 					export MAKE_JOBS
 				else
 					echo "-j expects an integer value" >&2
@@ -171,7 +171,7 @@ shift `dc -e "$OPTIND 1 - p"`
 
 # Configure paths to required tools
 if [ -z "$LLVM_PREFIX" ]; then
-	LLVM_PREFIX="$OBJ_DIR/tools/bin"
+	LLVM_PREFIX="$OBJ_DIR/tools"
 	export LLVM_PREFIX
 
 	NEED_LLVM=1
@@ -285,7 +285,7 @@ emit "\n"
 emit "subdirs: $SUBDIR_TARGETS"
 emit "\n\n"
 for SUBDIR in $SUBDIRS; do
-	eval "SUBDIR_DEPS=\${${SUBDIR}_DEPENDENCIES}"
+	eval "SUBDIR_DEPS=\${`var_name ${SUBDIR}`_DEPENDENCIES}"
 	emit "$SUBDIR.dir: $SUBDIR_DEPS $SUBDIR\n"
 	emit "\tcd \"$SUBDIR\" && \$(MAKE) $MAKE_JOBS all\n"
 	emit "\n"
