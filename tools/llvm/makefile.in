@@ -10,7 +10,7 @@ llvm: build configure
 	cd build && \$(MAKE) $MAKE_JOBS all install
 
 configure: \$(SRC_NAME) build
-	cd build && "$OBJ_DIR/tools/bin/cmake" ../\$(SRC_NAME)/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=\"$OBJ_DIR/tools\" -DLLVM_ENABLE_PROJECTS=\"clang;lld\"
+	cd build && "`test "$BUILDING_CMAKE" && echo "$OBJ_DIR/tools/bin/"`cmake" ../\$(SRC_NAME)/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=\"$OBJ_DIR/tools\" -DLLVM_ENABLE_PROJECTS=\"clang;lld\"
 
 \$(SRC_NAME): \$(ARCHIVE)
 	tar -xvf \$(ARCHIVE)
