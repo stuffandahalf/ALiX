@@ -395,13 +395,17 @@ done
 for ARTIFACT in $BUILD_ARTIFACTS; do
 	emit "\trm -f $ARTIFACT\n"
 done
-for TARGET in $TARGET_ARTIFACTS; do
-	emit "\trm -f $TARGET\n"
+for TARGET in `target_paths $TARGET_ARTIFACTS`; do
+	emit "\trm -f \"$TARGET\"\n"
 done
 for STATIC_LIB in $STATIC_LIB_TARGETS; do
-	emit "\trm -f `staticlib_fname $STATIC_LIB`\n"
+	emit "\trm -f `target_paths \`staticlib_fname $STATIC_LIB\``\n"
 done
 for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
-	emit "\trm -f `dynlib_fname $DYNAMIC_LIB`\n"
+	emit "\trm -f `target_paths \`dynlib_fname $DYNAMIC_LIB\``\n"
+done
+emit "\trm -rf \"$OBJ_DIR$RDIR\"\n"
+for BUILD_DIR in $BUILD_DIRS; do
+	emit "\trm -rf \"$OBJ_DIR$RDIR$BUILD_DIR\"\n"
 done
 emit "\n"
