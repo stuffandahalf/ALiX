@@ -1,0 +1,27 @@
+.POSIX:
+
+SRC_NAME=llvm-project-llvmorg-$LLVM_VERSION
+ARCHIVE=llvmorg-$LLVM_VERSION.tar.gz
+LLVM_SRC_URL=\"https://github.com/stuffandahalf/llvm-project/archive/refs/tags/\$(ARCHIVE)\"
+
+all: llvm
+
+llvm: build configure
+	cd build && \$(MAKE) $MAKE_JOBS all install
+
+configure: \$(SRC_NAME) build
+	cd build && "`test "$BUILDING_CMAKE" && echo "$OBJ_DIR/tools/bin/"`cmake" ../\$(SRC_NAME)/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=\"$OBJ_DIR/tools\" -DLLVM_ENABLE_PROJECTS=\"clang;lld\"
+
+\$(SRC_NAME): \$(ARCHIVE)
+	tar -xvf \$(ARCHIVE)
+
+\$(ARCHIVE):
+	curl -L -o \$(ARCHIVE) \$(LLVM_SRC_URL)
+
+build:
+	mkdir build
+
+clean:
+	rm -f \$(ARCHIVE)
+	rm -rf \$(SRC_NAME)
+	rm -rf build
