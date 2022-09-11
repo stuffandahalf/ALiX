@@ -48,7 +48,7 @@ path_dirs() {
 
 src2obj() {
 	for SRC in $@; do
-		printf "$SRC" | sed -e "s/\..*$/\.o /"
+		printf "$OBJ_DIR$RDIR`printf "$SRC" | sed -e "s/\..*$/\.o /"`"
 	done
 }
 
@@ -83,6 +83,12 @@ emit_target_deps() {
 var_name() {
 	for F in $@; do
 		echo "$F" | sed -e "s/[^a-zA-Z0-9_]/_/"
+	done
+}
+
+target_paths() {
+	for TARGET in $@; do
+		echo "$OBJ_DIR$RDIR$TARGET"
 	done
 }
 
@@ -215,10 +221,11 @@ if [ $# -gt 0 ]; then
 	export _DIR
 fi
 
-DIR="$_DIR"
-if [ -z "$DIR" ]; then
-	DIR="$SRC_ROOT/"
+RDIR="$_DIR"
+if [ -z "$RDIR" ]; then
+	RDIR="/"
 fi
+DIR="$SRC_ROOT$RDIR"
 # import any configuration that should be applied to subdirectories
 if [ -f "$DIR$IN_PREDEF_MAKEFILE" ]; then
 	. "$DIR$IN_PREDEF_MAKEFILE"
@@ -229,8 +236,9 @@ SUBDIRS=`ls -d "$DIR"*/ 2> /dev/null`
 # Recurse through subdirectories and configure them
 if [ $? -eq 0 ]; then
 	for SUBDIR in $SUBDIRS; do
+		#~ echo "$DIR`basename "$SUBDIR"`"
 		log 2 "ENTERING $SUBDIR"
-		$0 "$SUBDIR"
+		$0 "$RDIR`basename "$SUBDIR"`/"
 		log 2 "LEAVING $SUBDIR"
 	done
 fi
@@ -280,7 +288,7 @@ BUILD_ARTIFACTS=
 # write output file
 emit ".POSIX:\n"
 emit "\n"
-emit "all: subdirs $TARGETS `staticlib_fname $STATIC_LIB_TARGETS` `dynlib_fname $DYNAMIC_LIB_TARGETS`\n"
+emit "all: build.dir subdirs `target_paths $TARGETS \`staticlib_fname $STATIC_LIB_TARGETS\` \`dynlib_fname $DYNAMIC_LIB_TARGETS\``\n"
 emit "\n"
 emit "subdirs: $SUBDIR_TARGETS"
 emit "\n\n"
@@ -300,6 +308,7 @@ for TARGET in $TARGETS; do
 	eval "TARGET_LIBS=\${${TARGET_VAR}_LIBS}"
 	eval "TARGET_OUTPUT_FORMAT=\${${TARGET_VAR}_OUTPUT_FORMAT}"
 	eval "LIB_LOOKUP_DIRS=\${${TARGET_VAR}_LIB_LOOKUP_DIRS}"
+	LIB_LOOKUP_DIRS="`target_paths $LIB_LOOKUP_DIRS`"
 	TARGET_ARTIFACTS="$TARGET_ARTIFACTS $TARGET"
 	if [ "$TARGET_OUTPUT_FORMAT" -a "$TARGET_OUTPUT_FORMAT" != "elf" ]; then
 		TARGET_OUTPUT_FORMAT_DIFF=1
@@ -310,7 +319,7 @@ for TARGET in $TARGETS; do
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 #	emit "$TARGET: subdirs $TARGET_LIBS $OBJECTS $TARGET_EXTRA_DEPS\n"
-	emit "$TARGET"
+	emit "`target_paths $TARGET`"
 	if [ "$TARGET_OUTPUT_FORMAT_DIFF" ]; then
 		emit ".elf"
 	fi
@@ -319,8 +328,7 @@ for TARGET in $TARGETS; do
 	for LIB_LOOKUP_DIR in $LIB_LOOKUP_DIRS; do
 		emit " -L$LIB_LOOKUP_DIR"
 	done
-	#emit " -o$TARGET $OBJECTS"
-	emit " -o$TARGET"
+	emit " -o`target_paths $TARGET`"
 	if [ "$TARGET_OUTPUT_FORMAT_DIFF" ]; then
 		emit ".elf"
 	fi
@@ -330,8 +338,8 @@ for TARGET in $TARGETS; do
 	done
 	emit "\n\n"
 	if [ "$TARGET_OUTPUT_FORMAT_DIFF" ]; then
-		emit "$TARGET: $TARGET.elf\n"
-		emit "\t\"${OBJCOPY}\" $OBJCOPYFLAGS -O $TARGET_OUTPUT_FORMAT $TARGET.elf $TARGET\n\n"
+		emit "`target_paths $TARGET`: `target_paths $TARGET.elf`\n"
+		emit "\t\"${OBJCOPY}\" $OBJCOPYFLAGS -O $TARGET_OUTPUT_FORMAT `target_paths $TARGET.elf $TARGET`\n\n"
 	fi
 	emit_target_deps $TARGET_SOURCES
 done
@@ -345,8 +353,8 @@ for STATIC_LIB in $STATIC_LIB_TARGETS; do
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	# TODO: emit target linking
-	emit "`staticlib_fname $STATIC_LIB`: subdirs $OBJECTS $EXTRA_DEPS\n"
-	emit "\t\"${AR}\" ${ARFLAGS} ${TARGET_ARFLAGS} \$(ALIX_ARFLAGS) `staticlib_fname \"$STATIC_LIB\"` $OBJECTS\n"
+	emit "`target_paths \`staticlib_fname $STATIC_LIB\``: subdirs $OBJECTS $EXTRA_DEPS\n"
+	emit "\t\"${AR}\" ${ARFLAGS} ${TARGET_ARFLAGS} \$(ALIX_ARFLAGS) `target_paths \`staticlib_fname \"$STATIC_LIB\"\`` $OBJECTS\n"
 	emit "\n"
 	emit_target_deps $TARGET_SOURCES
 done
@@ -360,8 +368,8 @@ for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
 	# TODO: emit target linking
-	emit "`dynlib_fname \"$DYNAMIC_LIB\"`: subdirs $OBJECTS $EXTRA_DEPTS\n"
-	emit "\t\"${LD}\" $LDFLAGS \$(ALIX_LDFLAGS) -shared -o `dynlib_fname \"$DYNAMIC_LIB\"` $OBJECTS\n"
+	emit "`target_paths \`dynlib_fname \"$DYNAMIC_LIB\"\``: subdirs $OBJECTS $EXTRA_DEPTS\n"
+	emit "\t\"${LD}\" $LDFLAGS \$(ALIX_LDFLAGS) -shared -o `target_paths \`dynlib_fname \"$DYNAMIC_LIB\"\`` $OBJECTS\n"
 	emit "\n"
 	emit_target_deps $TARGET_SOURCES
 done
@@ -372,6 +380,12 @@ for TARGET in $TARGETS; do
 	if [ ! -z "$TARGET_INSTALL_DIR" ]; then
 		emit "\tinstall \"$TARGET\" \"$INSTALL_DIR$TARGET_INSTALL_DIR\"\n"
 	fi
+done
+emit "\n"
+emit "build.dir:\n"
+emit "\tmkdir -p \"$OBJ_DIR$RDIR\"\n"
+for BUILD_DIR in $BUILD_DIRS; do
+	emit "\tmkdir -p \"$OBJ_DIR$RDIR$BUILD_DIR\"\n"
 done
 emit "\n"
 emit "clean:\n"
