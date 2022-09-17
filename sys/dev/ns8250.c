@@ -105,13 +105,13 @@ ns8250_open(dev_t device, int flags)
 	_send(device->base + NS8250_REG_MODEM_CONTROL, modem | NS8250_MODEM_CONTROL_LOOP);
 	_send(device->base + NS8250_REG_DATA, 0x55);
 	_receive(device->base + NS8250_REG_DATA);
-	if (!0x55 == response) {
+	if (0x55 != response) {
 		kfree(*config);
 		return 1;
 	}
 	_send(device->base + NS8250_REG_DATA, 0xaa);
 	_receive(device->base + NS8250_REG_DATA);
-	if (!0xaa == response) {
+	if (0xaa != response) {
 		kfree(*config);
 		return 1;
 	}
