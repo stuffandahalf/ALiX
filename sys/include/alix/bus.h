@@ -3,11 +3,6 @@
 
 #include <stddef.h>
 
-#define BUS_PAYLOAD_SIZE_8 1
-#define BUS_PAYLOAD_SIZE_16 2
-#define BUS_PAYLOAD_SIZE_32 4
-#define BUS_PAYLOAD_SIZE_ARRAY 0
-
 struct device;
 
 typedef long int bus_target_t;
@@ -21,7 +16,7 @@ typedef long int bus_target_t;
 #define BUS_MESSAGE_INT16 (2 << 3)
 #define BUS_MESSAGE_INT32 (3 << 3)
 #define BUS_MESSAGE_INT64 (4 << 3)
-#define BUS_MESSAGE_INT_SZ(msg) ((msg->type >> 3) & 7)
+#define BUS_MESSAGE_INT_SZ(msg) (msg->type & (7 << 3))
 
 struct bus_message {
 	unsigned int type;

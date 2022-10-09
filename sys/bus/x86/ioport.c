@@ -101,6 +101,9 @@ x86_io_send(bus_target_t target, struct bus_message *message)
 			break;
 		}
 		break;
+	default:
+		exit = 1;
+		break;
 	}
 
 	return exit;
