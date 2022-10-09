@@ -2,3 +2,7 @@
 *makefile
 # object directory
 obj
+
+# mac os files
+.DS_Store
+

@@ -3,14 +3,12 @@
 #include <stdint.h>
 #include <alix/bus.h>
 
-static int x86_io_send(bus_target_t target, int size, ...);
-static int x86_io_receive(bus_target_t target, int size, ...);
+static int x86_io_send(bus_target_t target, struct bus_message *message);
+static int x86_io_receive(bus_target_t target, struct bus_message *message);
 
 struct bus x86_ioport = {
-	NULL,
-	NULL,
-	NULL,
 	"ioport",
+	NULL,
 	x86_io_send,
 	x86_io_receive
 };
@@ -82,65 +80,60 @@ inl(uint16_t port)
 }
 
 static int
-x86_io_send(bus_target_t target, int size, ...)
+x86_io_send(bus_target_t target, struct bus_message *message)
 {
 	int exit = 0;
-	uint32_t value;
-	va_list args;
 
-	va_start(args, size);
-	switch (size) {
-	case BUS_PAYLOAD_SIZE_8:
-		value = va_arg(args, uint32_t) & 0xff;
-		outb(target, value);
+	switch (BUS_MESSAGE_TYPE(message)) {
+	case BUS_MESSAGE_INT:
+		switch (BUS_MESSAGE_INT_SZ(message)) {
+		case BUS_MESSAGE_INT8:
+			outb(target, message->i);
+			break;
+		case BUS_MESSAGE_INT16:
+			outw(target, message->i);
+			break;
+		case BUS_MESSAGE_INT32:
+			outl(target, message->i);
+			break;
+		default:
+			exit = 1;
+			break;
+		}
 		break;
-	case BUS_PAYLOAD_SIZE_16:
-		value = va_arg(args, uint32_t) & 0xffff;
-		outw(target, value);
-		break;
-	case BUS_PAYLOAD_SIZE_32:
-		value = va_arg(args, uint32_t);
-		outl(target, value);
-		break;
-	default:
-		exit = 1;
-		break;
-	}
-	va_end(args);
 
 	return exit;
 }
 
 static int
-x86_io_receive(bus_target_t target, int size, ...)
+x86_io_receive(bus_target_t target, struct bus_message *message)
 {
 	int exit = 0;
-	union {
-		uint32_t *u32;
-		uint16_t *u16;
-		uint8_t *u8;
-		void *ptr;
-	} response;
-	va_list args;
 
-	va_start(args, size);
+	switch (BUS_MESSAGE_TYPE(message)) {
+	case BUS_MESSAGE_INT:
+		switch (BUS_MESSAGE_INT_SZ(message)) {
+		case BUS_MESSAGE_INT8:
+			message->i = inb(target);
+			break;
+		case BUS_MESSAGE_INT16:
+			message->i = inw(target);
+			break;
+		case BUS_MESSAGE_INT32:
+			message->i = inl(target);
+			break;
+		default:
+			exit = 1;
+			break;
+		}
+		break;
+	/* TODO: Consider allowing support for block messages */
+	/*case BUS_MESSAGE_BLOCK:
 
-	response.ptr = va_arg(args, void *);
-
-	switch (size) {
-	case BUS_PAYLOAD_SIZE_8:
-		*response.u8 = inb(target);
-		break;
-	case BUS_PAYLOAD_SIZE_16:
-		*response.u16 = inw(target);
-		break;
-	case BUS_PAYLOAD_SIZE_32:
-		*response.u32 = inl(target);
-		break;
+		break;*/
 	default:
 		exit = 1;
 	}
 
-	va_end(args);
 	return exit;
 }

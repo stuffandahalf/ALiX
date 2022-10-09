@@ -123,18 +123,21 @@ if [ -z "$CONFIGURED" ]; then
 	export KERNEL_FORMAT
 	OBJ_DIR="$SRC_ROOT/obj"
 	export OBJ_DIR
+	KERNEL_CONFIG="GENERIC"
+	export KERNEL_CONFIG
 
 	#~ OUTPUT_DIR="`basedir "$0"`"
 	INSTALL_DIR="~/"
 	export INSTALL_DIR
 
-	while getopts 'A:B:F:hi:j:M:v' opt; do
+	while getopts 'A:B:C:F:hi:j:M:v' opt; do
 		case $opt in
 			(A)
 				ARCH_ARG=$OPTARG
 				TARGET_ARCH=
 				;;
 			(B) BUILD_DIR=$OPTARG;;
+			(C) KERNEL_CONFIG=$OPTARG;;
 			(F) KERNEL_FORMAT=$OPTARG;;
 			(h) usage "$0"; exit 1;;
 			(i) INSTALL_DIR="$OPTARG";;

@@ -5,10 +5,10 @@ struct bus;
 struct dev;
 
 struct device {
-	const char *name;
 	unsigned long int base; /* base address / identifer */
 	struct bus *bus; /* pointer to bus used by driver for device io */
 	struct dev *driver; /* pointer to driver used for handling file io */
+	void *buffer; /* pointer to bus-specific communication buffer */
 	void *config; /* driver-specific configuration object */
 };
 
