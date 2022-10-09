@@ -1,6 +1,8 @@
 #ifndef ALIX_BUS_H
 #define ALIX_BUS_H 1
 
+#include <stddef.h>
+
 #define BUS_PAYLOAD_SIZE_8 1
 #define BUS_PAYLOAD_SIZE_16 2
 #define BUS_PAYLOAD_SIZE_32 4

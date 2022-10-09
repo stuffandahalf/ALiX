@@ -7,12 +7,12 @@
 #define PORT 0x3f8
 
 extern struct dev ns8250;
-extern struct bus x86_ioport;
+extern struct bus x86_ioport_bus;
 
 struct device early_console = {
 	NULL,
 	PORT,
-	&x86_ioport,
+	&x86_ioport_bus,
 	&ns8250,
 	NULL
 };
@@ -28,6 +28,7 @@ put_serial(char c)
 {
 	early_console.driver->write(&early_console, c);
 }
+
 int
 get_serial(void)
 {

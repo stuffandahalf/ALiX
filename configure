@@ -82,7 +82,7 @@ emit_target_deps() {
 
 var_name() {
 	for F in $@; do
-		echo "$F" | sed -e "s/[^a-zA-Z0-9_]/_/"
+		echo "$F" | sed -e "s/[^a-zA-Z0-9_]/_/g"
 	done
 }
 

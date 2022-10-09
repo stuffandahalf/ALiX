@@ -1,5 +1,7 @@
 # Generated makefiles
 *makefile
+# generated source files
+sys/config.c
 # object directory
 obj
 

@@ -1,19 +1,17 @@
-#include <stdarg.h>
+#include <stddef.h>
+#include <alix/bus.h>
 
-int
-test(int n, ...)
-{
-	va_list ap;
-	int i, v, r = 0;
-
-	va_start(ap, n);
-
-	for (i = 0; i < n; i++) {
-		v = va_arg(ap, int);
-		r += v;
-	}
-
-	va_end(ap);
-
-	return r;
-}
+`for BUS in $KERNEL_ROOT_BUS; do
+	echo "extern struct bus ${BUS}_bus;"
+done`
+struct bus *bus_root[] = {
+`for BUS in $KERNEL_ROOT_BUS; do
+	if [ $COMMA ]; then
+		printf ",\n"
+	fi
+	printf "\t&%s_bus" "$BUS"
+	COMMA=1
+done
+printf "\n"`
+};
+size_t bus_root_count = `echo "$KERNEL_ROOT_BUS" | wc -w`;

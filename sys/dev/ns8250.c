@@ -67,17 +67,19 @@ struct dev ns8250 = {
 #define NS8250_LINE_STATUS_IE (1 << 7) /* impending error */
 
 #define _send(target, value) \
-	bus->send(target, BUS_PAYLOAD_SIZE_8, value)
+	msg.i = (value); \
+	bus->send(target, &msg)
 
 #define _receive(target) \
-	bus->receive(target, BUS_PAYLOAD_SIZE_8, &response)
+	bus->receive(target, &msg)
 
 static int
 ns8250_open(dev_t device, int flags)
 {
 	struct tty **config = (struct tty **)&device->config;
 	const struct bus *bus = device->bus;
-	uint8_t response, modem;
+	struct bus_message msg = { BUS_MESSAGE_INT | BUS_MESSAGE_INT8 };
+	uint8_t modem;
 	uint16_t divisor;
 
 	if (!*config) {
@@ -105,13 +107,13 @@ ns8250_open(dev_t device, int flags)
 	_send(device->base + NS8250_REG_MODEM_CONTROL, modem | NS8250_MODEM_CONTROL_LOOP);
 	_send(device->base + NS8250_REG_DATA, 0x55);
 	_receive(device->base + NS8250_REG_DATA);
-	if (0x55 != response) {
+	if (0x55 != msg.i) {
 		kfree(*config);
 		return 1;
 	}
 	_send(device->base + NS8250_REG_DATA, 0xaa);
 	_receive(device->base + NS8250_REG_DATA);
-	if (0xaa != response) {
+	if (0xaa != msg.i) {
 		kfree(*config);
 		return 1;
 	}
@@ -131,24 +133,25 @@ static int
 ns8250_read(dev_t device)
 {
 	const struct bus *bus = device->bus;
-	uint8_t response;
+	struct bus_message msg = { BUS_MESSAGE_INT | BUS_MESSAGE_INT8 };
 	uint8_t lflags = NS8250_LINE_STATUS_DR | NS8250_LINE_STATUS_BI |
 			NS8250_LINE_STATUS_PE;
 
 	do {
 		_receive(device->base + NS8250_REG_LINE_STATUS);
-	} while (!(response & lflags));
-	if (!(response & NS8250_LINE_STATUS_DR)) {
+	} while (!(msg.i & lflags));
+	if (!(msg.i & NS8250_LINE_STATUS_DR)) {
 		return -1;
 	}
 	_receive(device->base + NS8250_REG_DATA);
-	return response;
+	return msg.i;
 }
 
 static int
 ns8250_write(dev_t device, char c)
 {
 	const struct bus *bus = device->bus;
+	struct bus_message msg = { BUS_MESSAGE_INT | BUS_MESSAGE_INT8 };
 
 	_send(device->base + NS8250_REG_DATA, c);
 	return 0;

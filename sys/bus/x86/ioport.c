@@ -6,7 +6,7 @@
 static int x86_io_send(bus_target_t target, struct bus_message *message);
 static int x86_io_receive(bus_target_t target, struct bus_message *message);
 
-struct bus x86_ioport = {
+struct bus x86_ioport_bus = {
 	"ioport",
 	NULL,
 	x86_io_send,
@@ -101,6 +101,7 @@ x86_io_send(bus_target_t target, struct bus_message *message)
 			break;
 		}
 		break;
+	}
 
 	return exit;
 }
