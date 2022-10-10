@@ -3,14 +3,14 @@
 #include <stdint.h>
 #include <alix/bus.h>
 
-static int x86_io_send(bus_target_t target, struct bus_message *message);
-static int x86_io_receive(bus_target_t target, struct bus_message *message);
+static int x86_isa_send(bus_target_t target, struct bus_message *message);
+static int x86_isa_receive(bus_target_t target, struct bus_message *message);
 
-struct bus x86_ioport_bus = {
+struct bus x86_isa_bus = {
 	"ioport",
 	NULL,
-	x86_io_send,
-	x86_io_receive
+	x86_isa_send,
+	x86_isa_receive
 };
 
 static inline void
@@ -80,7 +80,7 @@ inl(uint16_t port)
 }
 
 static int
-x86_io_send(bus_target_t target, struct bus_message *message)
+x86_isa_send(bus_target_t target, struct bus_message *message)
 {
 	int exit = 0;
 
@@ -110,7 +110,7 @@ x86_io_send(bus_target_t target, struct bus_message *message)
 }
 
 static int
-x86_io_receive(bus_target_t target, struct bus_message *message)
+x86_isa_receive(bus_target_t target, struct bus_message *message)
 {
 	int exit = 0;
 

@@ -7,12 +7,12 @@
 #define PORT 0x3f8
 
 extern struct dev ns8250;
-extern struct bus x86_ioport_bus;
+extern struct bus x86_isa_bus;
 
 struct device early_console = {
 	NULL,
 	PORT,
-	&x86_ioport_bus,
+	&x86_isa_bus,
 	&ns8250,
 	NULL
 };

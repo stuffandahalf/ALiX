@@ -14,4 +14,11 @@ struct bus *bus_root[] = {
 done
 printf "\n"`
 };
-size_t bus_root_count = `echo "$KERNEL_ROOT_BUS" | wc -w`;
+size_t bus_root_count = `echo "$KERNEL_ROOT_BUS" | wc -w | tr -d [:space:]`;
+
+void
+anounce(void)
+{
+	//write_serial(\"ALiX ${KERNEL_VERSION}\\\\n\");
+	//write_serial(\"Copyright (c) 2022 Gregory Norton\\\\n\");
+}
