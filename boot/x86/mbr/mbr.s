@@ -41,7 +41,7 @@ _start:
 2:
 	testb %cl, %cl
 	jnz 1b
-	
+
 	# return to bios
 	int $0x18
 3:
@@ -64,8 +64,7 @@ halt:
 	hlt
 	jmp halt
 
-read:
-	.include "../bios/comboread.s"
+	.include "../libbios/read.s"
 
 	.org top+446
 

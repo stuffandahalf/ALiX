@@ -1,2 +1,0 @@
-chsread:
-	ret

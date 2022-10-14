@@ -23,7 +23,7 @@
 
 # functions to simplify makefile generation
 usage() {
-	printf "usage: %s [-A architecture] [-M machine] [-B build dir] [-F kernel format] [-v+] [-h]\n" $1
+	printf "usage: %s [-A architecture] [-B build dir] [-C confname] [-F kernel format] [-h] [-i install dir] [-j nthreads] [-M machine] [-v+]\n" $1
 }
 
 log() {
@@ -127,7 +127,7 @@ if [ -z "$CONFIGURED" ]; then
 	export KERNEL_CONFIG
 
 	#~ OUTPUT_DIR="`basedir "$0"`"
-	INSTALL_DIR="~/"
+	INSTALL_DIR="$HOME/alix"
 	export INSTALL_DIR
 
 	while getopts 'A:B:C:F:hi:j:M:v' opt; do
@@ -342,7 +342,7 @@ for TARGET in $TARGETS; do
 	emit "\n\n"
 	if [ "$TARGET_OUTPUT_FORMAT_DIFF" ]; then
 		emit "`target_paths $TARGET`: `target_paths $TARGET.elf`\n"
-		emit "\t\"${OBJCOPY}\" $OBJCOPYFLAGS -O $TARGET_OUTPUT_FORMAT `target_paths $TARGET.elf $TARGET`\n\n"
+		emit "\t\"${OBJCOPY}\" $OBJCOPYFLAGS -O $TARGET_OUTPUT_FORMAT `target_paths $TARGET.elf $TARGET | tr "\n" " "`\n\n"
 	fi
 	emit_target_deps $TARGET_SOURCES
 done
@@ -377,11 +377,15 @@ for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 	emit_target_deps $TARGET_SOURCES
 done
 emit "install: all\n"
+for D in $SUBDIRS; do
+	emit "\tcd \"$D\" && \$(MAKE) install\n"
+done
 for TARGET in $TARGETS; do
 	TARGET_VAR=`var_name "$TARGET"`
 	eval "TARGET_INSTALL_DIR=\"\$${TARGET_VAR}_INSTALL_DIR\""
 	if [ ! -z "$TARGET_INSTALL_DIR" ]; then
-		emit "\tinstall \"$TARGET\" \"$INSTALL_DIR$TARGET_INSTALL_DIR\"\n"
+		emit "\tmkdir -p \"$INSTALL_DIR$TARGET_INSTALL_DIR\"\n"
+		emit "\tinstall \"`target_paths $TARGET`\" \"$INSTALL_DIR$TARGET_INSTALL_DIR\"\n"
 	fi
 done
 emit "\n"
