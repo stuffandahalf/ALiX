@@ -1,12 +1,12 @@
 .POSIX:
 
-CFLAGS+=-D_POSIX_C_SOURCE=200112L -I.
+CFLAGS+=-D _POSIX_C_SOURCE=200112L -I .
 
 TARGET=mkimg
 OBJS=main.o \
-	pm/mbr.o \
+	pm/raw.o pm/mbr.o \
 	fs/fat.o \
-	com/format.o
+	com/size.o com/format.o
 
 all: $(TARGET)
 

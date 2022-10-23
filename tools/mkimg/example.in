@@ -1,0 +1,6 @@
+# example input file for mkimg
+size 32M
+format mbr /Users/ganorton/git/alix/obj/boot/x86/mbr/mbr.bin
+partition 0 fat12
+write 0 .
+

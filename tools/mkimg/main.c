@@ -4,7 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "config.h"
+#include <config.h>
 
 int configure(int argc, char **argv);
 int process(FILE *ifp, FILE *ofp);
@@ -14,6 +14,9 @@ const char *ifname = NULL;
 const char *ofname = NULL;
 
 FILE *ifp, *ofp;
+unsigned long ofsz = 0;
+
+int pm_type = -1;
 
 int main(int argc, char **argv)
 {
@@ -134,18 +137,22 @@ process(FILE *ifp, FILE *ofp)
 	int argc, argl = 0;
 	char **argv = NULL;
 	const struct command commands[] = {
-		{ "size", 's', NULL },
-		{ "format", 'f', NULL },
+		{ "size", 's', size },
+		{ "format", 'f', format },
 		{ "partition", 'p', NULL },
 		{ "write", 'w', NULL }
 	};
 	size_t commandsc = sizeof(commands) / sizeof(struct command);
 
 	while (fgets(buffer, BUFFER_SIZE, ifp)) {
+		if ((bp = strchr(buffer, '\n'))) {
+			*bp = '\0';
+		}
 		fprintf(stderr, "%s\n", buffer);
 
 		argc = 0;
 		bp = buffer;
+
 		/* split arguments on spaces */
 		for (bp = strtok(buffer, " "); bp != NULL; bp = strtok(NULL, " ")) {
 			if (argc == argl) {
@@ -153,7 +160,7 @@ process(FILE *ifp, FILE *ofp)
 				argv = realloc(argv, sizeof(char *) * argl);
 			}
 			argv[argc] = bp;
-			if ((bp = strchr(bp, '/'))) {
+			if ((bp = strchr(bp, '#'))) {
 				*bp = '\0';
 				break;
 			}
@@ -162,23 +169,30 @@ process(FILE *ifp, FILE *ofp)
 				argc++;
 			}
 		}
-		fprintf(stderr, "%d\n", argc);
-		for (i = 0; i < argc; i++) {
-			fprintf(stderr, "%s\t", argv[i]);
+
+		if (!argc) {
+			continue;
 		}
-		fprintf(stderr, "\n");
 
-		if (argc) {
-			for (i = 0; i < commandsc; i++) {
-				if (strlen(argv[0]) == 1 && argv[0][0] == commands[i].sname) {
-					break;
-				}
+		for (i = 0; i < commandsc; i++) {
+			if (strlen(argv[0]) == 1 && argv[0][0] == commands[i].sname) {
+				break;
+			} else if (!strcmp(argv[0], commands[i].lname)) {
+				break;
 			}
+		}
 
-			if (i == commandsc) {
-				fprintf(stderr, "Unrecognized command \"%s\"\n", argv[0]);
-				return 1;
-			}
+		if (i == commandsc) {
+			fprintf(stderr, "Unrecognized command \"%s\"\n", argv[0]);
+			return 1;
+		}
+
+		if (!commands[i].entry) {
+			fprintf(stderr, "command \"%s\" not yet implemented\n", commands[i].lname);
+			continue;
+		}
+		if (commands[i].entry(argc, argv)) {
+			return 1;
 		}
 	}
 

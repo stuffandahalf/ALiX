@@ -5,11 +5,13 @@
 
 extern const char *ifname, *ofname;
 extern FILE *ifp, *ofp;
+extern unsigned long int ofsz;
+extern int pm_type;
 
 struct command {
 	const char *lname;
 	const char sname;
-	int (*handler)(int argc, char **argv);
+	int (*entry)(int argc, char **argv);
 };
 
 extern int format(int argc, char **argv);

@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include <pm/pm.h>
+
 #define MBR_PART_TYPE_FAT12 0x01
 //#define MBR_PART_TYPE_FAT12_ALT 0x06
 #define MBR_PART_TYPE_FAT16 0x04
@@ -26,5 +28,6 @@ struct mbr_hdr {
 	uint8_t signature[2];
 } __attribute__((__packed__));
 
+extern struct pm mbr_pm;
 
 #endif /* PM_MBR_H */
