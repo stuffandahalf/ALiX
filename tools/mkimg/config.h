@@ -6,6 +6,7 @@
 extern const char *ifname, *ofname;
 extern FILE *ifp, *ofp;
 extern unsigned long int ofsz;
+extern unsigned long blksz;
 extern int pm_type;
 
 struct command {

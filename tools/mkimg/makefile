@@ -6,7 +6,7 @@ TARGET=mkimg
 OBJS=main.o \
 	pm/raw.o pm/mbr.o \
 	fs/fat.o \
-	com/size.o com/format.o
+	com/size.o com/format.o com/part.o
 
 all: $(TARGET)
 

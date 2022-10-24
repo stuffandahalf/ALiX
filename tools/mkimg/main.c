@@ -7,7 +7,7 @@
 #include <config.h>
 
 int configure(int argc, char **argv);
-int process(FILE *ifp, FILE *ofp);
+int process(void);
 void cleanup(void);
 
 const char *ifname = NULL;
@@ -15,13 +15,12 @@ const char *ofname = NULL;
 
 FILE *ifp, *ofp;
 unsigned long ofsz = 0;
+unsigned long blksz = 512;
 
 int pm_type = -1;
 
 int main(int argc, char **argv)
 {
-	FILE *ifp, *ofp;
-
 	setlocale(LC_ALL, "");
 	atexit(cleanup);
 
@@ -39,16 +38,15 @@ int main(int argc, char **argv)
 		ifp = stdin;
 	}
 
-	ofp = fopen(ofname, "a");
+	ofp = fopen(ofname, "wb");
 	if (!ofp) {
 		perror(NULL);
 		return 1;
 	}
 
-	if (process(ifp, ofp)) {
+	if (process()) {
 		return 1;
 	}
-
 
 	printf("Hello World!\n");
 	return 0;
@@ -129,7 +127,7 @@ usage(char *name)
 #define BUFFER_SIZE 500
 
 int
-process(FILE *ifp, FILE *ofp)
+process(void)
 {
 	char buffer[BUFFER_SIZE] = { 0 };
 	char *bp;
@@ -139,7 +137,7 @@ process(FILE *ifp, FILE *ofp)
 	const struct command commands[] = {
 		{ "size", 's', size },
 		{ "format", 'f', format },
-		{ "partition", 'p', NULL },
+		{ "partition", 'p', part },
 		{ "write", 'w', NULL }
 	};
 	size_t commandsc = sizeof(commands) / sizeof(struct command);

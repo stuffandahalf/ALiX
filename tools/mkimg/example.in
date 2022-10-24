@@ -1,6 +1,7 @@
 # example input file for mkimg
-size 32M
+size device 32M
+size block 512
 format mbr /Users/ganorton/git/alix/obj/boot/x86/mbr/mbr.bin
-partition 0 fat12
+partition 0 fat16 1 +32M
 write 0 .
 
