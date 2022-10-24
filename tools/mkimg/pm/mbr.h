@@ -5,9 +5,6 @@
 
 #include <pm/pm.h>
 
-
-#define MBR_PART_TYPE_V7X86 0x72
-
 #define MBR_MAX_PARTITIONS 4
 
 //~ #define PACK_CHS(c, h, s) ()

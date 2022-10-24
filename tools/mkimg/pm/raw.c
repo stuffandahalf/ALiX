@@ -1,7 +1,7 @@
 #include <pm/pm.h>
 
 static int raw_format(const char *template);
-static int raw_addpart(int index, int type, unsigned long int start, unsigned long int length);
+static int raw_addpart(int index, struct fs_type *type, unsigned long int start, unsigned long int length);
 
 struct pm raw_pm = {
 	"raw",
@@ -16,7 +16,7 @@ raw_format(const char *template)
 }
 
 static int
-raw_addpart(int index, int type, unsigned long int start, unsigned long int length)
+raw_addpart(int index, struct fs_type *type, unsigned long int start, unsigned long int length)
 {
 	return 0;
 }

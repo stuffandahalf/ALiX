@@ -6,7 +6,7 @@
 #include <fs/fs.h>
 
 static int mbr_format(const char *template);
-static int mbr_partadd(int index, int type, unsigned long int start, unsigned long int length);
+static int mbr_partadd(int index, struct fs_type *type, unsigned long int start, unsigned long int length);
 static int mbr_write(void);
 
 struct pm mbr_pm = {
@@ -56,7 +56,7 @@ mbr_format(const char *template)
 }
 
 static int
-mbr_partadd(int index, int type, unsigned long int start, unsigned long int end)
+mbr_partadd(int index, struct fs_type *type, unsigned long int start, unsigned long int end)
 {
 	struct mbr_part *part = NULL;
 
@@ -75,7 +75,7 @@ mbr_partadd(int index, int type, unsigned long int start, unsigned long int end)
 	/* TODO: Figure out what to do with this */
 	MBR_PACK_CHS(part->chs_s, 0, 0, 0);
 	MBR_PACK_CHS(part->chs_e, 0, 0, 0);
-	part->type = type;
+	part->type = type->mbr;
 	part->lba_s = start;
 	part->sec_c = end - start;
 

@@ -56,7 +56,7 @@ part(int argc, char **argv)
 	for (i = 0; i < fsc; i++) {
 		if (!strcmp(argv[2], fss[i]->name)) {
 			fsconf = fss[i];
-			if (pmconf->partadd(index, fsconf->type, start, end)) {
+			if (pmconf->partadd(index, &fsconf->type, start, end)) {
 				return 1;
 			}
 			break;
