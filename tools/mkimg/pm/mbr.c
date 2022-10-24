@@ -6,8 +6,8 @@
 #include <fs/fs.h>
 
 static int mbr_format(const char *template);
-static int mbr_partadd(int type, unsigned long int start, unsigned long int length);
-static int mbr_write();
+static int mbr_partadd(int index, int type, unsigned long int start, unsigned long int length);
+static int mbr_write(void);
 
 struct pm mbr_pm = {
 	"mbr",
@@ -56,10 +56,32 @@ mbr_format(const char *template)
 }
 
 static int
-mbr_partadd(int type, unsigned long int start, unsigned long int length)
+mbr_partadd(int index, int type, unsigned long int start, unsigned long int end)
 {
+	struct mbr_part *part = NULL;
 
-	return 0;
+	if (index >= MBR_MAX_PARTITIONS) {
+		fprintf(stderr, "index \"%d\" is invalid for mbr partition maps\n", index);
+		return 1;
+	}
+
+	part = &hdr.pmap[index];
+
+	part->status = 0x00;
+	/*uint16_t chs[3];
+	if (lba2chs(start, chs)) {
+		return 1;
+	}*/
+	/* TODO: Figure out what to do with this */
+	MBR_PACK_CHS(part->chs_s, 0, 0, 0);
+	MBR_PACK_CHS(part->chs_e, 0, 0, 0);
+	part->type = type;
+	part->lba_s = start;
+	part->sec_c = end - start;
+
+	//~ fprintf(stderr, "adding part %d\ttype: %X\tstart: %lu\tend: %lu\n", type, start, end);
+	//~ return 0;
+	return mbr_write();
 }
 
 static int
@@ -70,7 +92,7 @@ mbr_getpartfs(int i, struct fs *filsys)
 }
 
 static int
-mbr_write()
+mbr_write(void)
 {
 	if (fseek(ofp, 0, SEEK_SET)) {
 		perror("Failed to seek to start of output");

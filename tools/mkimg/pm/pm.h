@@ -4,7 +4,7 @@
 struct pm {
 	const char *name;
 	int (*format)(const char *template);
-	int (*partadd)(int type, unsigned long int start, unsigned long int length);
+	int (*partadd)(int index, int type, unsigned long int start, unsigned long int length);
 };
 
 #endif /* PM_PM_H */

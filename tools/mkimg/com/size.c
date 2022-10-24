@@ -1,7 +1,7 @@
-#include <ctype.h>
 #include <string.h>
 
 #include <config.h>
+#include <util.h>
 
 static int
 usage(const char *name)
@@ -11,39 +11,10 @@ usage(const char *name)
 }
 
 static int
-parse(char *str, size_t *out)
-{
-	size_t sz;
-	char *cp;
-
-	sz = 0;
-	for (cp = str; *cp != '\0' && isdigit(*cp); cp++) {
-		if (cp != str) {
-			sz *= 10;
-		}
-		sz += *cp - '0';
-	}
-	if (!strcmp(cp, "k")) {
-		sz *= 1024;
-	} else if (!strcmp(cp, "M")) {
-		sz *= 1024 * 1024;
-	} else if (!strcmp(cp, "G")) {
-		sz *= 1024 * 1024 * 1024;
-	} else if (strcmp(cp, "")) {
-		fprintf(stderr, "unrecognized size modifier \"%s\"\n", cp);
-		return 1;
-	}
-
-	*out = sz;
-
-	return 0;
-}
-
-static int
 dev_size(int argc, char **argv)
 {
 	/* TODO: check if output is a block device with fixed size */
-	if (parse(argv[1], &ofsz)) {
+	if (parsesz(argv[1], &ofsz)) {
 		return 1;
 	}
 	fprintf(stderr, "requested size %lu\n", ofsz);
@@ -64,7 +35,7 @@ blk_size(int argc, char **argv)
 		return 1;
 	}
 
-	return parse(argv[1], &blksz);
+	return parsesz(argv[1], &blksz);
 }
 
 struct command subcmds[] = {
