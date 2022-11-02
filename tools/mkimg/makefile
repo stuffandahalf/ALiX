@@ -8,13 +8,17 @@ OBJS=main.o util.o \
 	fs/v7x86.o fs/fat.o \
 	com/size.o com/format.o com/part.o
 
-all: $(TARGET)
+all: $(TARGET) driver
 
 $(TARGET): $(OBJS)
 	$(CC) $(LDFLAGS) -o $(TARGET) $(OBJS)
 
+driver: driver.o pm/mbr.o fs/v7x86.o
+	$(CC) $(LDFLAGS) -o driver driver.o pm/mbr.o fs/v7x86.o
+
 clean:
 	rm -f $(TARGET)
 	rm -f $(OBJS)
+	rm -f driver driver.o
 
 

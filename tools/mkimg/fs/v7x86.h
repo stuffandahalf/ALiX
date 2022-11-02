@@ -7,6 +7,8 @@
 
 #define V7X86_NICINOD 100
 #define V7X86_NICFREE 50
+#define V7X86_ROOTINO ((v7x86_ino_t)2)
+#define V7X86_BSIZE 512
 
 typedef uint32_t v7x86_daddr_t;
 typedef uint16_t v7x86_ino_t;
@@ -46,5 +48,14 @@ struct v7x86_dinode {
 	v7x86_time_t di_ctime; /* time created */
 };
 #define INOPB   8       /* 8 inodes per block */
+
+#ifndef	DIRSIZ
+#define	DIRSIZ	14
+#endif
+struct v7x86_direct
+{
+	v7x86_ino_t d_ino;
+	char d_name[DIRSIZ];
+};
 
 #endif /* FS_V7X86_H */
