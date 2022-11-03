@@ -56,7 +56,6 @@ bread(unsigned long int lba, void *buffer)
 
 #define INLBA(in) (inlba + ((in) / INOPB))
 #define DISKADDR(addr, i) (bklba + (((addr)[(i) * 3 + 2] << 16) + ((addr)[(i) * 3 + 1] << 8) + ((addr)[(i) * 3 + 0])))
-//~ #define BKLBA(i) (bklba + (
 
 int
 process(void)
@@ -89,18 +88,21 @@ process(void)
 
 	printf("%p\t%X\t%u\n", part, part->status, part->lba_s);
 
-	if (bread(part->lba_s, superblk)) {
+	/* partition lba 0 is boot code */
+	if (bread(part->lba_s + 1, superblk)) {
 		return 1;
 	}
 
-	inlba = part->lba_s + 1;
-	bklba = part->lba_s + 1 + superblk->s_isize;
+	inlba = part->lba_s + 2;
+	bklba = part->lba_s + 2 + superblk->s_isize;
 
 	if (bread(INLBA(V7X86_ROOTINO), buffer)) {
 		return 1;
 	}
-	ino = &((struct v7x86_dinode *)buffer)[V7X86_ROOTINO];
+	ino = &((struct v7x86_dinode *)buffer)[V7X86_ROOTINO - 1];
 	printf("file size %u\n", ino->di_size);
+
+	//~ return 0;
 	dir = malloc(sizeof(uint8_t) * (ino->di_size + ino->di_size % BSIZE));
 	for (i = 0; i < 13 && ino->di_size > 0; i++) {
 		fprintf(stderr, "DISK ADDRESS %lu\n", DISKADDR(ino->di_addr, i));

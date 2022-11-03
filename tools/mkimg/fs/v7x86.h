@@ -34,7 +34,7 @@ struct v7x86_superblk {
 	int16_t s_n; /* " " */
 	char s_fname[6]; /* file system name */
 	char s_fpack[6]; /* file system pack name */
-};
+} __attribute__((__packed__));
 
 struct v7x86_dinode {
 	uint16_t di_mode; /* mode and type of file */
@@ -46,7 +46,7 @@ struct v7x86_dinode {
 	v7x86_time_t di_atime; /* time last accessed */
 	v7x86_time_t di_mtime; /* time last modified */
 	v7x86_time_t di_ctime; /* time created */
-};
+} __attribute__((__packed__));
 #define INOPB   8       /* 8 inodes per block */
 
 #ifndef	DIRSIZ
@@ -56,6 +56,6 @@ struct v7x86_direct
 {
 	v7x86_ino_t d_ino;
 	char d_name[DIRSIZ];
-};
+} __attribute__((__packed__));
 
 #endif /* FS_V7X86_H */
