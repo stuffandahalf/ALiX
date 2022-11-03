@@ -52,7 +52,7 @@ struct v7x86_dinode {
 #ifndef	DIRSIZ
 #define	DIRSIZ	14
 #endif
-struct v7x86_direct
+struct v7x86_dirent
 {
 	v7x86_ino_t d_ino;
 	char d_name[DIRSIZ];

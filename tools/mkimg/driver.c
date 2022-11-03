@@ -42,7 +42,7 @@ main(int argc, char **argv)
 static int
 bread(unsigned long int lba, void *buffer)
 {
-	printf("Seeking to lba %lu, offset %lu, target %p\n", lba, lba * BSIZE, buffer);
+	printf("Seeking to lba %lu, offset %lX, target %p\n", lba, lba * BSIZE, buffer);
 	if (-1 == fseek(fp, BSIZE * lba, SEEK_SET)) {
 		perror(NULL);
 		return 1;
@@ -55,7 +55,8 @@ bread(unsigned long int lba, void *buffer)
 }
 
 #define INLBA(in) (inlba + ((in) / INOPB))
-#define DISKADDR(addr, i) (bklba + (((addr)[(i) * 3 + 2] << 16) + ((addr)[(i) * 3 + 1] << 8) + ((addr)[(i) * 3 + 0])))
+//#define DISKADDR(addr, i) (bklba + (((addr)[(i) * 3 + 2] << 16) + ((addr)[(i) * 3 + 1] << 8) + ((addr)[(i) * 3 + 0])))
+#define DISKADDR(addr, i) (((addr)[(i) * 3 + 2] << 16) + ((addr)[(i) * 3 + 1] << 8) + ((addr)[(i) * 3 + 0]))
 
 int
 process(void)
@@ -65,7 +66,7 @@ process(void)
 	struct mbr_part *part;
 	struct v7x86_superblk *superblk;
 	struct v7x86_dinode *ino;
-	size_t loaded = 0;
+	size_t sz, loaded = 0;
 	uint8_t *buffer;
 	uint8_t *dir, *file;
 
@@ -94,7 +95,10 @@ process(void)
 	}
 
 	inlba = part->lba_s + 2;
-	bklba = part->lba_s + 2 + superblk->s_isize;
+	bklba = part->lba_s + 0 + superblk->s_isize;
+	//~ bklba = superblk->s_isize;
+	fprintf(stderr, "BKLBA %lX %lX\n", bklba, bklba * BSIZE);
+	//~ bklba = 0;
 
 	if (bread(INLBA(V7X86_ROOTINO), buffer)) {
 		return 1;
@@ -102,20 +106,22 @@ process(void)
 	ino = &((struct v7x86_dinode *)buffer)[V7X86_ROOTINO - 1];
 	printf("file size %u\n", ino->di_size);
 
-	//~ return 0;
-	dir = malloc(sizeof(uint8_t) * (ino->di_size + ino->di_size % BSIZE));
+	sz = ino->di_size;
+	//~ dir = malloc(sizeof(uint8_t) * (ino->di_size + ino->di_size % BSIZE));
+	dir = malloc(sizeof(uint8_t) * BSIZE * 13);
 	for (i = 0; i < 13 && ino->di_size > 0; i++) {
 		fprintf(stderr, "DISK ADDRESS %lu\n", DISKADDR(ino->di_addr, i));
-		if (ino->di_size >= BSIZE) {
-			ino->di_size -= BSIZE;
+		if (sz >= BSIZE) {
+			sz -= BSIZE;
 		} else {
-			ino->di_size = 0;
+			sz = 0;
 		}
-		bread(DISKADDR(ino->di_addr, i), &dir[i * BSIZE]);
+		bread(part->lba_s + DISKADDR(ino->di_addr, i), &dir[i * BSIZE]);
 	}
 
-	for (i = 0; i < (BSIZE / sizeof(struct v7x86_direct)); i++) {
-		fprintf(stderr, "%.*s\n", DIRSIZ, ((struct v7x86_direct *)dir)[i].d_name);
+	for (i = 0; i < (BSIZE / sizeof(struct v7x86_dirent)); i++) {
+	//~ for (i = 0; i < (ino->di_size / sizeof(struct v7x86_dirent)); i++) {
+		fprintf(stderr, "%.*s\n", DIRSIZ, ((struct v7x86_dirent *)dir)[i].d_name);
 	}
 
 	free(dir);
@@ -125,8 +131,6 @@ process(void)
 	free(mbr);
 
 	//~ while (loaded <
-
-	fclose(fp);
 
 	return 0;
 }
