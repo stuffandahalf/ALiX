@@ -9,13 +9,16 @@ MBR_SZ = bottom - top
 top:
 	cli
 
+	# set stack address
 	xorw %ax, %ax
 	movw %ax, %ss
 	movw $top, %sp
 
+	# Preserve PnP location
 	pushw %es
 	pushw %di
 
+	# relocate to link address
 	movw $LOAD_ADDR, %si
 	movw $LINK_ADDR, %di
 	movw $MBR_SZ, %cx
@@ -54,6 +57,7 @@ load_vbr:
 	movb %dl, %al
 	xorl %edx, %edx
 	movl 8(%si), %eax
+	xorl %ebx, %ebx
 	movw $LOAD_ADDR, %di
 	call read
 	popw %dx

@@ -34,12 +34,12 @@ _start:
 
 	call main
 
+1:
 	cli
 	hlt
-1:
 	jmp 1b
-
 .size _start, . - _start
+
 /*
 gdtr:
 	.word 0

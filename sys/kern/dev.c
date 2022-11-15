@@ -1,16 +1,32 @@
 #include <stddef.h>
-#include <alix/bus.h>
+#include <alix/dev.h>
+#include <alix/device.h>
 
-extern struct bus *bus_root[];
+extern struct dev *root_devs[];
+extern long int root_devc;
+
+struct device *devtree = NULL;
 
 int
-dev_init(void)
+init_dev(void)
 {
-	struct bus **b;
-
-	for (b = bus_root; *b != NULL; b++) {
-
+	long int i;
+	for (i = 0; i < root_devc; i++) {
+		root_devs[i]->attach(NULL);
 	}
 
+
 	return 0;
+}
+
+dev_t
+create_dev(struct dev *driver)
+{
+	return NULL;
+}
+
+void
+destroy_dev(dev_t d)
+{
+
 }

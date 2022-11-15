@@ -1,13 +1,15 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <alix/bus.h>
+//~ #include <alix/bus.h>
 #include <alix/dev.h>
 #include <alix/device.h>
+
+#if 0
 
 #define PORT 0x3f8
 
 extern struct dev ns8250;
-extern struct bus x86_isa_bus;
+//~ extern struct bus x86_isa_bus;
 
 struct device early_console = {
 	NULL,
@@ -82,3 +84,5 @@ printl(int32_t num, uint8_t base)
 	}
 	printul(num, base);
 }
+
+#endif

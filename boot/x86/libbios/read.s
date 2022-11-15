@@ -27,6 +27,9 @@ read.ext:
 	movl %ebx, 12(%si)
 	int $0x13
 
+read.legacy:
+	# TODO
+
 read.end:
 	ret
 

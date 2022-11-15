@@ -1,16 +1,69 @@
 #include <stdint.h>
 #include <alix/mem.h>
+#include <alix/log.h>
 
-extern void write_serial(const char *str);
-extern void put_serial(char c);
-extern void printul(unsigned long int num, unsigned char base);
-extern void printl(unsigned long int num, unsigned char base);
-
-static struct mmap_entry *sys_mmap = NULL;
-static size_t sys_mmap_entryc = 0;
+struct mmap_entry *sys_physmmap = NULL;
+size_t sys_physmmap_sz = 0;
 
 extern uintptr_t kernel_bottom, kernel_top;
 
+void *
+memcpy(void *dest, const void *src, size_t n)
+{
+	size_t i;
+
+	for (i = 0; i < n; i++) {
+		*(uint8_t *)dest = *(uint8_t *)src;
+	}
+
+	return dest;
+}
+
+void *
+alloc(struct mmap_entry *mmap, size_t mmap_sz, size_t size)
+{
+	size_t i, rsz = size + sizeof(struct memblk);
+	struct memblk *blk;
+	ssize_t e, exp = 0;
+
+	if (rsz % MEMBLK_MIN_SIZE) {
+		rsz += MEMBLK_MIN_SIZE - rsz % MEMBLK_MIN_SIZE;
+	}
+
+	while ((rsz >> exp) > 0) {
+		exp++;
+	}
+
+
+	for (i = 0; i < mmap_sz; i++) {
+		if (mmap[i].type != MEMORY_TYPE_FREE || rsz > mmap[i].length) continue;
+
+		/* traverse buddy tree until suitable node is found */
+
+		blk = mmap[i].start;
+		if (blk->magic == MEMBLK_MAGIC_ALLOCED) {
+			/* if master, find buddy */
+			/* if buddy, increase e, find master + 1 buddy */
+			// if ()
+		}
+	}
+
+	return NULL;
+}
+
+void *
+realloc(struct mmap_entry *mmap, size_t mmap_sz, void *ptr, size_t size)
+{
+	return NULL;
+}
+
+void
+free(struct mmap_entry *mmap, size_t mmap_sz, void *ptr)
+{
+
+}
+
+#if 0
 int
 kmem_init(struct mmap_entry *entries, size_t entryc)
 {
@@ -22,8 +75,10 @@ kmem_init(struct mmap_entry *entries, size_t entryc)
 	void *start;
 	void *kbot = &kernel_bottom, *ktop = &kernel_top;
 
+	klogld(entryc, 10);
 	/* Add entries to function-local memory map variable */
 	for (i = 0; i < entryc; i++) {
+		klogc('?');
 		/* discard any zero-length blocks */
 		if (!entries[i].length) {
 			continue;
@@ -116,18 +171,6 @@ kmem_init(struct mmap_entry *entries, size_t entryc)
 #define BUDDY_MASK(exp) (MEMBLK_MIN_SIZE << (exp))
 #define BUDDY_ADDR(blk, exp) ((void *)((uintptr_t)blk ^ BUDDY_MASK(exp)))
 
-void *
-memcpy(void *dest, const void *src, size_t n)
-{
-	size_t i;
-
-	for (i = 0; i < n; i++) {
-		*(uint8_t *)dest = *(uint8_t *)src;
-	}
-
-	return dest;
-}
-
 static struct memblk *
 blk_combine(struct memblk *blk, struct memblk *buddy)
 {
@@ -175,7 +218,7 @@ kmem_avail(int debug)
 	struct memblk *blk, *buddy;
 
 	if (debug) {
-		write_serial("blk->exp\talloced\tstart\tend\n");
+		klogs("blk->exp\talloced\tstart\tend\n");
 	}
 
 	for (i = 0; i < sys_mmap_entryc; i++) {
@@ -189,14 +232,14 @@ kmem_avail(int debug)
 
 			do {
 				if (debug) {
-					printul(blk->exp, 10);
-					write_serial("\t\t");
-					write_serial(MEMBLK_MAGIC_ALLOCED == blk->magic ? "yes" : "no");
-					put_serial('\t');
-					printul((uintptr_t)blk, 16);
-					put_serial('\t');
-					printul((uintptr_t)blk + MEMBLK_SIZE(blk->exp), 16);
-					put_serial('\n');
+					kloglu(blk->exp, 10);
+					klogs("\t\t");
+					klogs(MEMBLK_MAGIC_ALLOCED == blk->magic ? "yes" : "no");
+					klogc('\t');
+					kloglu((uintptr_t)blk, 16);
+					klogc('\t');
+					kloglu((uintptr_t)blk + MEMBLK_SIZE(blk->exp), 16);
+					klogc('\n');
 				}
 
 				exp = blk->exp;
@@ -219,6 +262,27 @@ kmem_avail(int debug)
 	return total;
 }
 
+void *
+alloc(struct mmap_entry *mmap, size_t mmap_sz, size_t size)
+{
+	return NULL;
+}
+
+void *
+realloc(struct mmap_entry *mmap, size_t mmap_sz, void *ptr, size_t size)
+{
+	return NULL;
+}
+
+void
+free(struct mmap_entry *mmap, size_t mmap_sz, void *ptr)
+{
+
+}
+
+
+
+#if 0
 void *
 kalloc(size_t size)
 {
@@ -274,10 +338,7 @@ kalloc(size_t size)
 void
 kfree(void *ptr)
 {
-	int found = 0;
-	size_t i, j;
 	ssize_t max_exp;
-	uintptr_t start, end;
 	struct memblk *blk, *buddy;
 
 	if (!ptr) {
@@ -357,3 +418,6 @@ krealloc(void *ptr, size_t size)
 	}
 	return memcpy(blk + 1, blk1 + 1, MEMBLK_SIZE(exp) - sizeof(struct memblk));
 }
+#endif
+
+#endif

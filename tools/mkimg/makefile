@@ -1,6 +1,6 @@
 .POSIX:
 
-CFLAGS+=-D _POSIX_C_SOURCE=200112L -I .
+CFLAGS+=-D_POSIX_C_SOURCE=200112L -I. -I../../sys/include
 
 TARGET=mkimg
 OBJS=main.o util.o \

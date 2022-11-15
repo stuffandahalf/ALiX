@@ -1,24 +1,25 @@
 #include <stddef.h>
-#include <alix/bus.h>
+#include <alix/dev.h>
+#include <alix/log.h>
 
 `for BUS in $KERNEL_ROOT_BUS; do
-	echo "extern struct bus ${BUS}_bus;"
+	echo "extern struct dev $BUS;"
 done`
-struct bus *bus_root[] = {
+struct dev *root_devs[] = {
 `for BUS in $KERNEL_ROOT_BUS; do
 	if [ $COMMA ]; then
 		printf ",\n"
 	fi
-	printf "\t&%s_bus" "$BUS"
+	printf "\t&%s" "$BUS"
 	COMMA=1
 done
 printf "\n"`
 };
-size_t bus_root_count = `echo "$KERNEL_ROOT_BUS" | wc -w | tr -d [:space:]`;
+long int root_devc = `echo "$KERNEL_ROOT_BUS" | wc -w | tr -d [:space:]`;
 
 void
 anounce(void)
 {
-	//write_serial(\"ALiX ${KERNEL_VERSION}\\\\n\");
-	//write_serial(\"Copyright (c) 2022 Gregory Norton\\\\n\");
+	klogs(\"ALiX ${SYSTEM_VERSION}\\\\n\");
+	klogs(\"Copyright (c) 2022 Gregory Norton\\\\n\");
 }
