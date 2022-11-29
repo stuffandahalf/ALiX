@@ -4,6 +4,7 @@
 #include <alix/device.h>
 #include <alix/mem.h>
 #include <alix/log.h>
+#include <arch/log.h>
 
 static int init_mmap(struct multiboot_info *mbd);
 
@@ -53,8 +54,6 @@ setup32(multiboot_info_t *mbd)
 	//~ }
 }
 
-
-
 /* TODO: Implement new memory map init */
 /* - find number of mmap entries */
 /* - use first block of sufficient size to allocate new system mmap */
@@ -86,7 +85,8 @@ init_mmap(multiboot_info_t *mbd)
 			klogc('\t');
 			kloglu(blk.length, 10);
 			klogc('\t');
-			kloglu(blk.maxexp, 10);
+			kloglu(log2(blk.length), 10);
+			// kloglu(blk.maxexp, 10);
 			klogc('\t');
 			kloglu(mb_mmap->type, 10);
 			klogc('\n');
