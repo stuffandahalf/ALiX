@@ -3,48 +3,127 @@
 #include <alix/log.h>
 
 struct mmap_entry *sys_physmmap = NULL;
-size_t sys_physmmap_sz = 0;
+ssize_t sys_physmmap_sz = 0;
 
 extern uintptr_t kernel_bottom, kernel_top;
 
 void *
-memcpy(void *dest, const void *src, size_t n)
+memcpy(void *restrict dest, const void *restrict src, size_t n)
 {
 	size_t i;
+	void *od = dest;
 
-	for (i = 0; i < n; i++) {
-		*(uint8_t *)dest = *(uint8_t *)src;
+	if (dest == NULL || src == NULL) {
+		return NULL;
 	}
 
-	return dest;
+	for (i = 0; i < n; i++) {
+		*(uint8_t *)dest++ = *(uint8_t *)src++;
+	}
+
+	return od;
+}
+
+int
+kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap)
+{
+	ssize_t i;
+	struct memblk *blk;
+
+	for (i = 0; i < mmap_sz; i++) {
+		if (mmap[i].type != MEMORY_TYPE_FREE) {
+			continue;
+		}
+		blk = mmap[i].start;
+		blk->length = mmap[i].length;
+		blk->magic = 0;
+		blk->next = NULL;
+		mmap[i].free = blk;
+	}
+
+	if (mmap_reserve(mmap_sz, mmap, kernel_bottom, kernel_top - kernel_bottom)) {
+		return 1;
+	}
+
+	sys_physmmap = alloc(mmap_sz, mmap, sizeof(struct mmap_entry) * mmap_sz);
+	kloglu((uintptr_t)sys_physmmap, 16);
+	klogc('\n');
+	if (!sys_physmmap) {
+		return 1;
+	}
+	memcpy(sys_physmmap, mmap, sizeof(struct mmap_entry) * mmap_sz);
+	sys_physmmap_sz = mmap_sz;
+
+	return 0;
+}
+
+#define max(a, b) (((a) > (b)) ? (a) : (b))
+#define min(a, b) (((a) > (b)) ? (b) : (a))
+#define inrange(s, e, v) ((s) <= (v) && (v) <= (e))
+
+int
+mmap_reserve(ssize_t mmap_sz, struct mmap_entry *mmap, uintptr_t start, size_t length)
+{
+	ssize_t i;
+	uintptr_t s, e;
+
+	for (i = 0; i < mmap_sz; i++) {
+		if (mmap[i].type != MEMORY_TYPE_FREE) {
+			continue;
+		}
+		s = max(start, (uintptr_t)mmap[i].start);
+		e = min(start + length, (uintptr_t)mmap[i].start + mmap[i].length);
+		if (!inrange((uintptr_t)mmap[i].start, (uintptr_t)mmap[i].start + mmap[i].length, s) ||
+			!inrange((uintptr_t)mmap[i].start, (uintptr_t)mmap[i].start + mmap[i].length, e)) {
+			//return 1;
+			continue;
+		}
+
+
+	}
+	return 0;
 }
 
 void *
-alloc(struct mmap_entry *mmap, size_t mmap_sz, size_t size)
+alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size)
 {
-	size_t i, rsz = size + sizeof(struct memblk);
-	struct memblk *blk;
-	ssize_t e, exp = 0;
+	size_t rsz = size + sizeof(struct memblk);
+	ssize_t i;
+	struct memblk *pblk, *blk, *nblk;
 
 	if (rsz % MEMBLK_MIN_SIZE) {
 		rsz += MEMBLK_MIN_SIZE - rsz % MEMBLK_MIN_SIZE;
 	}
 
-	while ((rsz >> exp) > 0) {
-		exp++;
-	}
-
-
 	for (i = 0; i < mmap_sz; i++) {
-		if (mmap[i].type != MEMORY_TYPE_FREE || rsz > mmap[i].length) continue;
+		for (pblk = NULL, blk = mmap[i].free; blk != NULL; pblk = blk, blk = blk->next) {
+			if (blk->length >= rsz) {
+				/* break down block */
+				if (blk->length > (rsz + sizeof(struct memblk))) {
+					nblk = (void *)blk + rsz;
+					nblk->next = blk->next;
+					nblk->length = blk->length - rsz;
+					nblk->magic = 0;
+					blk->length = rsz;
+					blk->next = nblk;
+				}
 
-		/* traverse buddy tree until suitable node is found */
+				if (pblk) {
+					pblk->next = blk->next;
+				}
+				if (mmap[i].free == blk) {
+					mmap[i].free = blk->next;
+				}
+				blk->next = mmap[i].alloced;
+				mmap[i].alloced = blk;
+				/* needed? */
+				blk->magic = MEMBLK_MAGIC_ALLOCED;
 
-		blk = mmap[i].start;
-		if (blk->magic == MEMBLK_MAGIC_ALLOCED) {
-			/* if master, find buddy */
-			/* if buddy, increase e, find master + 1 buddy */
-			// if ()
+				klogld(blk->length, 10);
+				klogc('\n');
+
+				return (void *)(blk + 1);
+			}
 		}
 	}
 
@@ -52,15 +131,43 @@ alloc(struct mmap_entry *mmap, size_t mmap_sz, size_t size)
 }
 
 void *
-realloc(struct mmap_entry *mmap, size_t mmap_sz, void *ptr, size_t size)
+realloc(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr, size_t size)
 {
 	return NULL;
 }
 
 void
-free(struct mmap_entry *mmap, size_t mmap_sz, void *ptr)
+free(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr)
 {
 
+}
+
+size_t
+kmem_avail(int debug)
+{
+	size_t count = 0;
+	ssize_t i;
+	struct memblk *blk;
+
+	for (i = 0; i < sys_physmmap_sz; i++) {
+		if (debug) {
+			klogld(i, 10);
+			klogs(" | type ");
+			kloglu(sys_physmmap[i].type, 10);
+			klogs(" | free ");
+			kloglu((uintptr_t)sys_physmmap[i].free, 16);
+			klogs(" | alloced ");
+			kloglu((uintptr_t)sys_physmmap[i].alloced, 16);
+			klogc('\n');
+		}
+		if (sys_physmmap[i].type != MEMORY_TYPE_FREE) {
+			continue;
+		}
+		for (blk = sys_physmmap[i].free; blk != NULL; blk = blk->next) {
+			count += blk->length - sizeof(struct memblk);
+		}
+	}
+	return count;
 }
 
 #if 0
