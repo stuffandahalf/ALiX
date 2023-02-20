@@ -10,11 +10,45 @@ static int init_mmap(struct multiboot_info *mbd);
 
 //~ extern struct device early_console;
 
+int
+memtest(size_t n, size_t esz)
+{
+	void *ptrs[n];
+	size_t before, middle, after;
+	ssize_t i;
+
+	before = kmem_avail(0);
+
+	for (i = 0; i < n; i++) {
+		ptrs[i] = kalloc(esz);
+	}
+
+	middle = kmem_avail(0);
+	for (i = n - 1; i >= 0; i--) {
+		kfree(ptrs[i]);
+	}
+
+	after = kmem_avail(0);
+
+	if (after != before) {
+		klogs("MEMORY NOT FREED\nBEFORE: ");
+		kloglu(before, 10);
+		klogs("  MIDDLE: ");
+		kloglu(middle, 10);
+		klogs("  AFTER: ");
+		kloglu(after, 10);
+		klogc('\n');
+
+		kmem_avail(1);
+	}
+	return after != before;
+}
+
 void
 setup32(multiboot_info_t *mbd)
 {
 	int i;
-	//~ void *a, *b;
+	void *a, *b;
 
 	//~ if (init_serial()) {
 		//~ return;
@@ -29,11 +63,20 @@ setup32(multiboot_info_t *mbd)
 		klogs("Failed to initialize memory\n");
 		return;
 	}
+	_klog_flush();
 	klogs("SURVIVED\n");
 
-	klogs("MEMORY LAYOUT\n");
-	kloglu(kmem_avail(1), 10);
-	klogc('\n');
+	// a = kalloc(4096);
+	// // b = kalloc(16384);
+	// b = kalloc(4 * 1024 * 1024);
+	// kfree(b);
+	// kfree(a);
+	memtest(64, 1024 * 1024);
+	memtest(64, 2 * 1024 * 1024);
+
+	// klogs("MEMORY LAYOUT\n");
+	// kloglu(kmem_avail(1), 10);
+	// klogc('\n');
 
 	//~ kmem_avail(1);
 	//~ b = kalloc(1024);

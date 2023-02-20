@@ -41,9 +41,9 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap)
 		mmap[i].free = blk;
 	}
 
-	if (mmap_reserve(mmap_sz, mmap, kernel_bottom, kernel_top - kernel_bottom)) {
-		return 1;
-	}
+	// if (mmap_reserve(mmap_sz, mmap, kernel_bottom, kernel_top - kernel_bottom)) {
+	// 	return 1;
+	// }
 
 	sys_physmmap = alloc(mmap_sz, mmap, sizeof(struct mmap_entry) * mmap_sz);
 	kloglu((uintptr_t)sys_physmmap, 16);
@@ -61,7 +61,7 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap)
 #define min(a, b) (((a) > (b)) ? (b) : (a))
 #define inrange(s, e, v) ((s) <= (v) && (v) <= (e))
 
-int
+void *
 mmap_reserve(ssize_t mmap_sz, struct mmap_entry *mmap, uintptr_t start, size_t length)
 {
 	ssize_t i;
@@ -81,8 +81,10 @@ mmap_reserve(ssize_t mmap_sz, struct mmap_entry *mmap, uintptr_t start, size_t l
 
 
 	}
-	return 0;
+	return NULL;
 }
+
+#define PADDED_LENGTH(l) (l + (((l) % MEMBLK_ALIGNMENT) ? MEMBLK_ALIGNMENT - (l) % MEMBLK_ALIGNMENT : 0))
 
 void *
 alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size)
@@ -91,11 +93,20 @@ alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size)
 	ssize_t i;
 	struct memblk *pblk, *blk, *nblk;
 
-	if (rsz % MEMBLK_MIN_SIZE) {
-		rsz += MEMBLK_MIN_SIZE - rsz % MEMBLK_MIN_SIZE;
+	/* correct allignment */
+	if (rsz % MEMBLK_ALIGNMENT) {
+		kloglu(size, 10);
+		klogc('\t');
+		kloglu(MEMBLK_ALIGNMENT - rsz % MEMBLK_ALIGNMENT, 10);
+		klogc('\n');
+		rsz += MEMBLK_ALIGNMENT - rsz % MEMBLK_ALIGNMENT;
 	}
+	// rsz = PADDED_LENGTH(rsz);
 
 	for (i = 0; i < mmap_sz; i++) {
+		if (mmap[i].type != MEMORY_TYPE_FREE) {
+			continue;
+		}
 		for (pblk = NULL, blk = mmap[i].free; blk != NULL; pblk = blk, blk = blk->next) {
 			if (blk->length >= rsz) {
 				/* break down block */
@@ -119,8 +130,9 @@ alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size)
 				/* needed? */
 				blk->magic = MEMBLK_MAGIC_ALLOCED;
 
-				klogld(blk->length, 10);
-				klogc('\n');
+				// klogs("alloced ");
+				// klogld(blk->length, 10);
+				// klogc('\n');
 
 				return (void *)(blk + 1);
 			}
@@ -139,7 +151,65 @@ realloc(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr, size_t size)
 void
 free(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr)
 {
+	ssize_t i;
+	struct memblk *blk = ptr - sizeof(struct memblk);
+	struct memblk *pblk, *cblk;
 
+	if (!ptr) {
+		return;
+	}
+
+	for (i = 0; i < mmap_sz; i++) {
+		if (mmap[i].type != MEMORY_TYPE_FREE) {
+			continue;
+		}
+		if ((uintptr_t)mmap[i].start <= (uintptr_t)blk &&
+			(uintptr_t)(blk + blk->length) <= (uintptr_t)(mmap[i].start + mmap[i].length)) {
+			// free block
+			// klogs("found mmap entry\n");
+			// for (pblk = NULL; fblk = mmap[i].free
+
+			for (pblk = NULL, cblk = mmap[i].alloced; cblk != blk && cblk != NULL; pblk = cblk, cblk = cblk->next);
+			if (!cblk) {
+				klogs("not really alloced?\n");
+				return;
+			}
+
+			if (!pblk) {
+				mmap[i].alloced = cblk->next;
+			} else {
+				pblk->next = cblk->next;
+			}
+
+			// if ((uintptr_t)mmap[i].free > (uintptr_t)blk) {
+			// 	blk->next = mmap[i].free;
+			// 	mmap[i].free = blk;
+			// }
+			for (pblk = NULL, cblk = mmap[i].free; cblk != NULL; pblk = cblk, cblk = cblk->next) {
+				// if (pblk && (uintptr_t)pblk  + pblk->length == blk) {
+
+				// }
+				if ((uintptr_t)blk + blk->length == (uintptr_t)cblk) {
+					blk->length += cblk->length;
+					blk->next = cblk->next;
+					cblk = blk;
+
+					if (pblk) {
+						// blk->next = pblk->next;
+						pblk->next = cblk;
+					} else {
+						mmap[i].free = cblk;
+					}
+				}
+				// if ((uintptr_t)cblk + cblk->length == (uintptr_t)blk) {
+				// 	blk->next = cblk->next;
+				// 	cblk->next = blk;
+				// 	cblk
+				// }
+				// if ((uintptr_t)(cblk))
+			}
+		}
+	}
 }
 
 size_t

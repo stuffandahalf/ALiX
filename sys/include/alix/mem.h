@@ -6,11 +6,14 @@
 #include <cdefs.h>
 
 #define MEMBLK_MAGIC_ALLOCED 0xA10C
-#define MEMBLK_MIN_SIZE (1 << 5) /* 32 bytes */
+// #define MEMBLK_MIN_SIZE (1 << 5) /* 32 bytes */
+#define MEMBLK_ALIGNMENT 16
 
 /* type used to identify a block of memory by alloc/free */
 struct memblk {
 	unsigned short int magic;
+	// causes looping?
+	// struct mmap_entry *parent;
 	size_t length;
 	struct memblk *next;
 };
@@ -34,6 +37,7 @@ size_t kmem_avail(int debug);
 
 void *memcpy(void *restrict dest, const void *restrict src, size_t n);
 
+void *mmap_reserve(ssize_t mmap_sz, struct mmap_entry *mmap, uintptr_t start, size_t length);
 void *alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size);
 void *realloc(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr, size_t size);
 void free(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr);

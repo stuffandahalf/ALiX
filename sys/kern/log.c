@@ -1,6 +1,6 @@
 #include <alix/log.h>
 
-#define KLOG_BUFSZ 256
+#define KLOG_BUFSZ 1024
 static char klog_buf[KLOG_BUFSZ] = { 0 };
 static unsigned int klog_i = 0;
 

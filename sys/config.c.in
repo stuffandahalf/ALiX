@@ -20,6 +20,6 @@ long int root_devc = `echo "$KERNEL_ROOT_BUS" | wc -w | tr -d [:space:]`;
 void
 anounce(void)
 {
-	klogs(\"ALiX ${SYSTEM_VERSION}\\n\");
-	klogs(\"Copyright (c) 2022 Gregory Norton\\n\");
+	klogs(\"ALiX ${SYSTEM_VERSION}\\\\n\");
+	klogs(\"Copyright (c) 2022,2023 Gregory Norton\\\\n\");
 }
