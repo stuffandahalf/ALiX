@@ -48,54 +48,23 @@ void
 setup32(multiboot_info_t *mbd)
 {
 	int i;
-	void *a, *b;
 
-	//~ if (init_serial()) {
-		//~ return;
-	//~ }
-	klogs("Hello Serial World!\n");
+	// klogs((const char *)mbd->boot_loader_name);
+	// klogc('\n');
+	// klogld(mbd->mmap_length, 10);
+	// klogc('\n');
 
-	klogs((const char *)mbd->boot_loader_name);
-	klogc('\n');
-	klogld(mbd->mmap_length, 10);
-	klogc('\n');
 	if (init_mmap(mbd)) {
 		klogs("Failed to initialize memory\n");
 		return;
 	}
-	_klog_flush();
-	klogs("SURVIVED\n");
-
-	// a = kalloc(4096);
-	// // b = kalloc(16384);
-	// b = kalloc(4 * 1024 * 1024);
-	// kfree(b);
-	// kfree(a);
-	memtest(64, 1024 * 1024);
-	memtest(64, 2 * 1024 * 1024);
+	// _klog_flush();
+	// memtest(64, 1024 * 1024);
+	// memtest(64, 2 * 1024 * 1024);
 
 	// klogs("MEMORY LAYOUT\n");
 	// kloglu(kmem_avail(1), 10);
 	// klogc('\n');
-
-	//~ kmem_avail(1);
-	//~ b = kalloc(1024);
-	//~ kmem_avail(1);
-
-	//~ a = kalloc(1024);
-	//~ kmem_avail(1);
-	//~ printul((uintptr_t)a, 16);
-	//~ put_serial('\n');
-
-	//~ a = krealloc(a, 1024 * 1024);
-	//~ kmem_avail(1);
-	//~ printul((uintptr_t)a, 16);
-	//~ put_serial('\n');
-
-	//~ for (;;) {
-		//~ char c = get_serial();
-		//~ put_serial(c);
-	//~ }
 }
 
 static int init_mmap_simple(size_t lo, size_t hi);
@@ -168,19 +137,6 @@ init_mmap(multiboot_info_t *mbd)
 		if (init_mmap_simple(mbd->mem_lower, mbd->mem_upper)) {
 			return 1;
 		}
-
-		// blk.start = (void *)0;
-		// blk.length = mbd->mem_lower;
-		// blk.type = MEMORY_TYPE_FREE;
-		// mmap_sz = 2;
-		// mmap = alloc(&blk, 1, sizeof(struct mmap_entry) * mmap_sz);
-
-		// if (!mmap) {
-		// 	blk.start = (void *)0x100000;
-		// 	blk.length = mbd->mem_upper;
-		// 	blk.type = MEMORY_TYPE_FREE;
-		// 	mmap = alloc(&blk, 1, sizeof(struct mmap_entry) * mmap_sz);
-		// }
 	}
 
 	return 0;
@@ -190,9 +146,12 @@ static int
 init_mmap_simple(size_t lo, size_t hi)
 {
 	struct mmap_entry mmap[] = {
-		{ .type = MEMORY_TYPE_FREE, .start = (void *)0x500, .length = lo * 1024 - 0x500, .free = NULL, .alloced = NULL },
+		{ .type = MEMORY_TYPE_FREE, .start = (void *)0, .length = lo * 1024, .free = NULL, .alloced = NULL },
 		{ .type = MEMORY_TYPE_FREE, .start = (void *)0x100000, .length = hi * 1024, .free = NULL, .alloced = NULL }
 	};
+	uintptr_t reserved[][2] = {
+		{ 0x0, 0x500 }
+	};
 
-	return kmem_init(2, mmap);
+	return kmem_init(sizeof(mmap) / sizeof(struct mmap_entry), mmap, sizeof(reserved) / sizeof(uintptr_t *), reserved);
 }

@@ -5,7 +5,7 @@
 struct mmap_entry *sys_physmmap = NULL;
 ssize_t sys_physmmap_sz = 0;
 
-extern uintptr_t kernel_bottom, kernel_top;
+extern int kernel_bottom, kernel_top;
 
 void *
 memcpy(void *restrict dest, const void *restrict src, size_t n)
@@ -25,7 +25,7 @@ memcpy(void *restrict dest, const void *restrict src, size_t n)
 }
 
 int
-kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap)
+kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap, ssize_t reserve_sz, uintptr_t reserve[][2])
 {
 	ssize_t i;
 	struct memblk *blk;
@@ -34,6 +34,7 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap)
 		if (mmap[i].type != MEMORY_TYPE_FREE) {
 			continue;
 		}
+		/* TODO: alignment */
 		blk = mmap[i].start;
 		blk->length = mmap[i].length;
 		blk->magic = 0;
@@ -41,13 +42,20 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap)
 		mmap[i].free = blk;
 	}
 
-	// if (mmap_reserve(mmap_sz, mmap, kernel_bottom, kernel_top - kernel_bottom)) {
-	// 	return 1;
-	// }
+	if (mmap_reserve(mmap_sz, mmap, (uintptr_t)&kernel_bottom, (uintptr_t)&kernel_top)) {
+		return 1;
+	}
+	klogs("REMOVE THIS " __FILE__ ":");
+	kloglu(__LINE__, 10);
+	klogc('\n');
+	return 1;
+	for (i = 0; i < reserve_sz; i++) {
+		if (mmap_reserve(mmap_sz, mmap, reserve[i][0], reserve[i][1])) {
+			return 1;
+		}
+	}
 
 	sys_physmmap = alloc(mmap_sz, mmap, sizeof(struct mmap_entry) * mmap_sz);
-	kloglu((uintptr_t)sys_physmmap, 16);
-	klogc('\n');
 	if (!sys_physmmap) {
 		return 1;
 	}
@@ -58,33 +66,39 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap)
 }
 
 #define max(a, b) (((a) > (b)) ? (a) : (b))
-#define min(a, b) (((a) > (b)) ? (b) : (a))
-#define inrange(s, e, v) ((s) <= (v) && (v) <= (e))
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#define overlap(s1, e1, s2, e2) (max((s1), (s2)) < min((e1), (e2)))
 
-void *
-mmap_reserve(ssize_t mmap_sz, struct mmap_entry *mmap, uintptr_t start, size_t length)
+int
+mmap_reserve(ssize_t mmap_sz, struct mmap_entry *mmap, uintptr_t start, uintptr_t end)
 {
-	ssize_t i;
+	ssize_t i, r = 1;
 	uintptr_t s, e;
+	struct memblk *pblk, *blk;
 
 	for (i = 0; i < mmap_sz; i++) {
 		if (mmap[i].type != MEMORY_TYPE_FREE) {
 			continue;
 		}
-		s = max(start, (uintptr_t)mmap[i].start);
-		e = min(start + length, (uintptr_t)mmap[i].start + mmap[i].length);
-		if (!inrange((uintptr_t)mmap[i].start, (uintptr_t)mmap[i].start + mmap[i].length, s) ||
-			!inrange((uintptr_t)mmap[i].start, (uintptr_t)mmap[i].start + mmap[i].length, e)) {
-			//return 1;
-			continue;
+
+		for (pblk = NULL, blk = mmap[i].free; blk != NULL; pblk = blk, blk = blk->next) {
+			if (overlap(start, end, (uintptr_t)blk, (uintptr_t)blk + blk->length)) {
+				klogs("OVERLAP: ");
+				kloglu((uintptr_t)start, 16);
+				klogc(':');
+				kloglu((uintptr_t)end, 16);
+				klogc(' ');
+				kloglu((uintptr_t)blk, 16);
+				klogc(':');
+				kloglu((uintptr_t)blk + blk->length, 16);
+				klogc('\n');
+			}
 		}
 
 
 	}
-	return NULL;
+	return r;
 }
-
-#define PADDED_LENGTH(l) (l + (((l) % MEMBLK_ALIGNMENT) ? MEMBLK_ALIGNMENT - (l) % MEMBLK_ALIGNMENT : 0))
 
 void *
 alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size)
@@ -101,7 +115,6 @@ alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size)
 		klogc('\n');
 		rsz += MEMBLK_ALIGNMENT - rsz % MEMBLK_ALIGNMENT;
 	}
-	// rsz = PADDED_LENGTH(rsz);
 
 	for (i = 0; i < mmap_sz; i++) {
 		if (mmap[i].type != MEMORY_TYPE_FREE) {
@@ -131,7 +144,7 @@ alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size)
 				blk->magic = MEMBLK_MAGIC_ALLOCED;
 
 				// klogs("alloced ");
-				// klogld(blk->length, 10);
+				// klogld((void *)(blk + 1), 16);
 				// klogc('\n');
 
 				return (void *)(blk + 1);
@@ -164,7 +177,7 @@ free(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr)
 			continue;
 		}
 		if ((uintptr_t)mmap[i].start <= (uintptr_t)blk &&
-			(uintptr_t)(blk + blk->length) <= (uintptr_t)(mmap[i].start + mmap[i].length)) {
+			((uintptr_t)blk + blk->length) <= (uintptr_t)(mmap[i].start + mmap[i].length)) {
 			// free block
 			// klogs("found mmap entry\n");
 			// for (pblk = NULL; fblk = mmap[i].free
@@ -239,362 +252,3 @@ kmem_avail(int debug)
 	}
 	return count;
 }
-
-#if 0
-int
-kmem_init(struct mmap_entry *entries, size_t entryc)
-{
-	int i, j;
-	size_t entryc_real = 0, remainder;
-	struct mmap_entry tmp, local_mmap[entryc + 2];
-	struct mmap_entry *tmp_mmap, *current = local_mmap;
-	struct memblk *blk;
-	void *start;
-	void *kbot = &kernel_bottom, *ktop = &kernel_top;
-
-	klogld(entryc, 10);
-	/* Add entries to function-local memory map variable */
-	for (i = 0; i < entryc; i++) {
-		klogc('?');
-		/* discard any zero-length blocks */
-		if (!entries[i].length) {
-			continue;
-		}
-
-		/* if mmap_entry contains kernel, need to split into 2-3 nodes */
-		if (entries[i].start <= kbot && ktop <= entries[i].start + entries[i].length) {
-			if (entries[i].start < kbot) {
-				current->start = entries[i].start;
-				current->length = kbot - entries[i].start;
-				current->type = entries[i].type;
-				current++;
-				entryc_real++;
-			}
-
-			current->start = kbot;
-			current->length = ktop - kbot;
-			current->type = MEMORY_TYPE_KERNEL;
-			current++;
-			entryc_real++;
-
-			if (ktop < entries[i].start + entries[i].length) {
-				current->start = ktop;
-				current->length = entries[i].start + entries[i].length - ktop;
-				current->type = entries[i].type;
-				current++;
-				entryc_real++;
-			}
-		} else {
-			*current = entries[i];
-			current++;
-			entryc_real++;
-		}
-	}
-
-	/* sort through memory map from smallest to largest */
-	for (i = 0; i < entryc_real; i++) {
-		for (j = i; j < entryc_real; j++) {
-			if (local_mmap[i].length > local_mmap[j].length) {
-				tmp = local_mmap[i];
-				local_mmap[i] = local_mmap[j];
-				local_mmap[j] = tmp;
-			}
-		}
-		/* i'th block is now in order */
-
-		/* set up free memory blocks */
-		local_mmap[i].exp[0] = -1;
-		if (local_mmap[i].type == MEMORY_TYPE_FREE && local_mmap[i].length) {
-			remainder = local_mmap[i].length;
-			start = local_mmap[i].start;
-			for (j = 0; j < MMAP_MAX_BLOCKS; j++) {
-				local_mmap[i].exp[j] = -1;
-				while (remainder >> (local_mmap[i].exp[j] + 1) >= MEMBLK_MIN_SIZE) {
-					local_mmap[i].exp[j]++;
-				}
-				if (local_mmap[i].exp[j] >= 0) {
-					blk = start;
-					blk->magic = 0;
-					blk->exp = local_mmap[i].exp[j];
-
-					start += MEMBLK_MIN_SIZE << local_mmap[i].exp[j];
-					remainder -= MEMBLK_MIN_SIZE << local_mmap[i].exp[j];
-				}
-
-			}
-		}
-	}
-
-	/* allocate kernel memory map */
-	sys_mmap = local_mmap;
-	sys_mmap_entryc = entryc_real;
-	tmp_mmap = kalloc(sizeof(struct mmap_entry) * entryc_real);
-	sys_mmap = NULL;
-	if (!tmp_mmap) {
-		sys_mmap_entryc = 0;
-		return 1;
-	}
-
-	/* copy local map to kernel map */
-	for (i = 0; i < entryc_real; i++) {
-		tmp_mmap[i] = local_mmap[i];
-	}
-	sys_mmap = tmp_mmap;
-
-	return 0;
-}
-
-#define MEMBLK_SIZE(exp) (MEMBLK_MIN_SIZE << (exp))
-#define BUDDY_MASK(exp) (MEMBLK_MIN_SIZE << (exp))
-#define BUDDY_ADDR(blk, exp) ((void *)((uintptr_t)blk ^ BUDDY_MASK(exp)))
-
-static struct memblk *
-blk_combine(struct memblk *blk, struct memblk *buddy)
-{
-	if (buddy < blk) {
-		buddy->exp = blk->exp + 1;
-		buddy->magic = 0;
-		blk = buddy;
-	} else {
-		blk->exp++;
-	}
-	return blk;
-}
-
-static ssize_t
-blk_exp_max(struct memblk *blk)
-{
-	ssize_t i, j;
-	uintptr_t start, end;
-
-	for (i = 0; i < sys_mmap_entryc; i++) {
-		if (MEMORY_TYPE_FREE != sys_mmap[i].type) {
-			continue;
-		}
-
-		start = (uintptr_t)sys_mmap[i].start;
-		for (j = 0; j < MMAP_MAX_BLOCKS && sys_mmap[i].exp[j] >= 0; j++) {
-			end = start + MEMBLK_SIZE(sys_mmap[i].exp[j]);
-			if (start <= (uintptr_t)blk && (uintptr_t)blk < end) {
-				return sys_mmap[i].exp[j];
-			}
-			start = end;
-		}
-	}
-
-	return -1;
-}
-
-size_t
-kmem_avail(int debug)
-{
-	size_t i, j;
-	size_t total = 0;
-	ssize_t exp;
-	void *start;
-	struct memblk *blk, *buddy;
-
-	if (debug) {
-		klogs("blk->exp\talloced\tstart\tend\n");
-	}
-
-	for (i = 0; i < sys_mmap_entryc; i++) {
-		if (MEMORY_TYPE_FREE != sys_mmap[i].type) {
-			continue;
-		}
-
-		start = sys_mmap[i].start;
-		for (j = 0; j < MMAP_MAX_BLOCKS && sys_mmap[i].exp[j] >= 0; j++) {
-			blk = start;
-
-			do {
-				if (debug) {
-					kloglu(blk->exp, 10);
-					klogs("\t\t");
-					klogs(MEMBLK_MAGIC_ALLOCED == blk->magic ? "yes" : "no");
-					klogc('\t');
-					kloglu((uintptr_t)blk, 16);
-					klogc('\t');
-					kloglu((uintptr_t)blk + MEMBLK_SIZE(blk->exp), 16);
-					klogc('\n');
-				}
-
-				exp = blk->exp;
-				if (MEMBLK_MAGIC_ALLOCED != blk->magic) {
-					total += MEMBLK_SIZE(blk->exp);
-				}
-
-				buddy = BUDDY_ADDR(blk, exp);
-				while ((uintptr_t)buddy < (uintptr_t)blk) {
-					exp++;
-					buddy = BUDDY_ADDR(buddy, exp);
-				}
-				blk = buddy;
-			} while (exp < sys_mmap[i].exp[j]);
-
-			start += MEMBLK_MIN_SIZE << sys_mmap[i].exp[j];
-		}
-	}
-
-	return total;
-}
-
-void *
-alloc(struct mmap_entry *mmap, size_t mmap_sz, size_t size)
-{
-	return NULL;
-}
-
-void *
-realloc(struct mmap_entry *mmap, size_t mmap_sz, void *ptr, size_t size)
-{
-	return NULL;
-}
-
-void
-free(struct mmap_entry *mmap, size_t mmap_sz, void *ptr)
-{
-
-}
-
-
-
-#if 0
-void *
-kalloc(size_t size)
-{
-	struct memblk *blk, *buddy;
-	void *start;
-	ssize_t exp;
-	ssize_t i, j;
-
-	size += sizeof(struct memblk);
-
-	for (i = 0; i < sys_mmap_entryc; i++) {
-		if (MEMORY_TYPE_FREE != sys_mmap[i].type || sys_mmap[i].length < size) {
-			continue;
-		}
-
-		start = sys_mmap[i].start;
-		for (j = 0; j < MMAP_MAX_BLOCKS && sys_mmap[i].exp[j] >= 0; j++) {
-			blk = start;
-
-			exp = sys_mmap[i].exp[j];
-			do {
-
-				exp = blk->exp;
-
-				if (MEMBLK_MAGIC_ALLOCED != blk->magic && MEMBLK_SIZE(blk->exp) >= size) {
-					blk->magic = MEMBLK_MAGIC_ALLOCED;
-					while (blk->exp > 0 && MEMBLK_SIZE(blk->exp - 1) > size) {
-						blk->exp--;
-						buddy = BUDDY_ADDR(blk, blk->exp);
-						if (MEMBLK_MAGIC_ALLOCED != buddy->magic) {
-							buddy->magic = 0;
-							buddy->exp = blk->exp;
-						}
-					}
-					return (void *)(blk + 1);
-				}
-
-				buddy = BUDDY_ADDR(blk, exp);
-				while (buddy < blk) {
-					exp++;
-					buddy = BUDDY_ADDR(buddy, exp);
-				}
-				blk = buddy;
-			} while (exp < sys_mmap[i].exp[j] && (void *)blk < (start + MEMBLK_SIZE(sys_mmap[i].exp[j])));
-
-			start += MEMBLK_MIN_SIZE << sys_mmap[i].exp[j];
-		}
-	}
-
-	return NULL;
-}
-
-void
-kfree(void *ptr)
-{
-	ssize_t max_exp;
-	struct memblk *blk, *buddy;
-
-	if (!ptr) {
-		return;
-	}
-
-	blk = (struct memblk *)ptr - 1;
-	if (MEMBLK_MAGIC_ALLOCED != blk->magic) {
-		return;
-	}
-
-	max_exp = blk_exp_max(blk);
-
-	if (max_exp < 0) {
-		return;
-	}
-
-	blk->magic = 0;
-	buddy = BUDDY_ADDR(blk, blk->exp);
-	while (blk->exp < max_exp && MEMBLK_MAGIC_ALLOCED != buddy->magic) {
-		blk = blk_combine(blk, buddy);
-		buddy = BUDDY_ADDR(blk, blk->exp);
-	}
-}
-
-void *
-krealloc(void *ptr, size_t size)
-{
-	struct memblk *blk, *blk1, *buddy;
-	ssize_t exp_max, exp_new, exp;
-	void *new_ptr;
-
-	if (!ptr) {
-		return kalloc(size);
-	}
-
-	size += sizeof(struct memblk);
-
-	blk = (struct memblk *)ptr - 1;
-	if (MEMBLK_MAGIC_ALLOCED != blk->magic) {
-		return NULL;
-	}
-
-	exp_max = blk_exp_max(blk);
-	if (exp_max < 0) {
-		return NULL;
-	}
-
-	exp_new = blk->exp;
-	blk1 = blk;
-	buddy = BUDDY_ADDR(blk, exp_new);
-	while (exp_new < exp_max && MEMBLK_SIZE(exp_new) < size &&
-			MEMBLK_MAGIC_ALLOCED != buddy->magic) {
-		exp_new++;
-		if (blk1 > buddy) {
-			blk1 = buddy;
-		}
-		buddy = BUDDY_ADDR(blk1, exp_new);
-	}
-
-	if (MEMBLK_SIZE(exp_new) < size || MEMBLK_MAGIC_ALLOCED == buddy->magic) {
-		new_ptr = kalloc(size - sizeof(struct memblk));
-		if (!new_ptr) {
-			return NULL;
-		}
-
-		memcpy(new_ptr, ptr, MEMBLK_SIZE(blk->exp) - sizeof(struct memblk));
-		kfree(ptr);
-		return new_ptr;
-	}
-
-	blk1 = blk;
-	exp = blk->exp;
-	while (blk->exp < exp_new) {
-		buddy = BUDDY_ADDR(blk, blk->exp);
-		blk = blk_combine(blk, buddy);
-	}
-	return memcpy(blk + 1, blk1 + 1, MEMBLK_SIZE(exp) - sizeof(struct memblk));
-}
-#endif
-
-#endif

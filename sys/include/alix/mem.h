@@ -32,12 +32,12 @@ struct mmap_entry {
 	struct memblk *alloced;
 };
 
-int kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap);
+int kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap, ssize_t reserved_sz, uintptr_t reserved[][2]);
 size_t kmem_avail(int debug);
 
 void *memcpy(void *restrict dest, const void *restrict src, size_t n);
 
-void *mmap_reserve(ssize_t mmap_sz, struct mmap_entry *mmap, uintptr_t start, size_t length);
+int mmap_reserve(ssize_t mmap_sz, struct mmap_entry *mmap, uintptr_t start, uintptr_t end);
 void *alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size);
 void *realloc(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr, size_t size);
 void free(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr);

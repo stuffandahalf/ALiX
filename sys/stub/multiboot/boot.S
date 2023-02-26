@@ -17,8 +17,10 @@
 
 .section .bss
 .align 16
+.globl stack_bottom
 stack_bottom:
 .skip 16384 # 16KiB
+.globl stack_top
 stack_top:
 
 .section .text
