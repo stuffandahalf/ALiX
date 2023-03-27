@@ -4,7 +4,7 @@
 #include <alix/device.h>
 #include <alix/mem.h>
 #include <alix/log.h>
-#include <arch/log.h>
+#include <alix/util.h>
 
 static int init_mmap(struct multiboot_info *mbd);
 
@@ -153,5 +153,5 @@ init_mmap_simple(size_t lo, size_t hi)
 		{ 0x0, 0x500 }
 	};
 
-	return kmem_init(sizeof(mmap) / sizeof(struct mmap_entry), mmap, sizeof(reserved) / sizeof(uintptr_t *), reserved);
+	return kmem_init(LEN(mmap), mmap, LEN(reserved), reserved);
 }

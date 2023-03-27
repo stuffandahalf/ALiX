@@ -1,11 +1,17 @@
 #include <stdint.h>
 #include <alix/mem.h>
 #include <alix/log.h>
+#include <alix/util.h>
 
 struct mmap_entry *sys_physmmap = NULL;
 ssize_t sys_physmmap_sz = 0;
 
 extern int kernel_bottom, kernel_top;
+
+const uintptr_t ALWAYS_RESERVE[][2] = {
+	{ (uintptr_t)&kernel_bottom, (uintptr_t)&kernel_top }
+};
+#define ALWAYS_RESERVE_SZ LEN(ALWAYS_RESERVE)
 
 void *
 memcpy(void *restrict dest, const void *restrict src, size_t n)
@@ -24,17 +30,68 @@ memcpy(void *restrict dest, const void *restrict src, size_t n)
 	return od;
 }
 
+#define max(a, b) (((a) > (b)) ? (a) : (b))
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+#define overlap(s1, e1, s2, e2) (max((s1), (s2)) < min((e1), (e2)))
+
 int
 kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap, ssize_t reserve_sz, uintptr_t reserve[][2])
 {
-	ssize_t i;
+	ssize_t i, j, k;
+	size_t l;
+	uintptr_t *range;;
 	struct memblk *blk;
+	uintptr_t _reserve[reserve_sz + ALWAYS_RESERVE_SZ][2];
 
-	for (i = 0; i < mmap_sz; i++) {
+	/* combine machine reserved ranges with always reserved ranges */
+	for (i = 0; i < ALWAYS_RESERVE_SZ; i++) {
+		_reserve[i][0] = ALWAYS_RESERVE[i][0];
+		_reserve[i][1] = ALWAYS_RESERVE[i][1];
+	}
+	for (i = 0; i < reserve_sz; i++) {
+		_reserve[i + ALWAYS_RESERVE_SZ][0] = reserve[i][0];
+		_reserve[i + ALWAYS_RESERVE_SZ][1] = reserve[i][1];
+	}
+	reserve_sz += ALWAYS_RESERVE_SZ;
+
+	/* sort reserved ranges */
+	for (i = 0; i < reserve_sz; i++) {
+		for (j = i; j < reserve_sz; j++) {
+			if (_reserve[j][0] < _reserve[i][0]) {
+				for (k = 0; k < 2; k++) {
+					range[k] = _reserve[j][k];
+					_reserve[j][k] = _reserve[i][k];
+					_reserve[i][k] = range[k];
+				}
+			}
+		}
+	}
+
+	/* print list of reserved ranges */
+	for (i = 0; i < reserve_sz; i++) {
+		klogs("reserve ");
+		kloglu(_reserve[i][0], 16);
+		klogc(':');
+		kloglu(_reserve[i][1], 16);
+		klogc('\n');
+	}
+
+	/* initialize memory layout */
+	for (i = 0, j = 0; i < mmap_sz; i++) {
 		if (mmap[i].type != MEMORY_TYPE_FREE) {
 			continue;
 		}
 		/* TODO: alignment */
+		/* reserve blocks here */
+
+		// blk = mmap[i].start;
+		// l = mmap[i].length;
+		// for (j = 0; j < reserve_sz; j++) {
+		// 	if (overlap(mmap[i].start, mmap[i].start + mmap[i].length, _reserve[j][0], _reserve[j][1])) {
+
+		// 	}
+		// }
+
 		blk = mmap[i].start;
 		blk->length = mmap[i].length;
 		blk->magic = 0;
@@ -42,19 +99,15 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap, ssize_t reserve_sz, uintptr_
 		mmap[i].free = blk;
 	}
 
-	if (mmap_reserve(mmap_sz, mmap, (uintptr_t)&kernel_bottom, (uintptr_t)&kernel_top)) {
-		return 1;
-	}
-	klogs("REMOVE THIS " __FILE__ ":");
-	kloglu(__LINE__, 10);
-	klogc('\n');
-	return 1;
-	for (i = 0; i < reserve_sz; i++) {
-		if (mmap_reserve(mmap_sz, mmap, reserve[i][0], reserve[i][1])) {
-			return 1;
-		}
-	}
+	// for (i = 0; i < reserve_sz; i++) {
+	// 	if (mmap_reserve(mmap_sz, mmap, _reserve[i][0], _reserve[i][1])) {
+	// 		return 1;
+	// 	}
+	// 	/* REMOVE THIS */
+	// 	return 1;
+	// }
 
+	/* allocate and copy system mmap */
 	sys_physmmap = alloc(mmap_sz, mmap, sizeof(struct mmap_entry) * mmap_sz);
 	if (!sys_physmmap) {
 		return 1;
@@ -65,16 +118,13 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap, ssize_t reserve_sz, uintptr_
 	return 0;
 }
 
-#define max(a, b) (((a) > (b)) ? (a) : (b))
-#define min(a, b) (((a) < (b)) ? (a) : (b))
-#define overlap(s1, e1, s2, e2) (max((s1), (s2)) < min((e1), (e2)))
 
 int
 mmap_reserve(ssize_t mmap_sz, struct mmap_entry *mmap, uintptr_t start, uintptr_t end)
 {
 	ssize_t i, r = 1;
 	uintptr_t s, e;
-	struct memblk *pblk, *blk;
+	struct memblk *pblk, *blk, *nblk;
 
 	for (i = 0; i < mmap_sz; i++) {
 		if (mmap[i].type != MEMORY_TYPE_FREE) {
@@ -92,6 +142,20 @@ mmap_reserve(ssize_t mmap_sz, struct mmap_entry *mmap, uintptr_t start, uintptr_
 				klogc(':');
 				kloglu((uintptr_t)blk + blk->length, 16);
 				klogc('\n');
+
+				/*if ((uintptr_t)(blk + 1) < start) {
+					blk->length = start - (uintptr_t)blk;
+				}*/
+
+				/*if (  ) {
+					nblk = (void *)min((uintptr_t)blk + blk->length, end);
+					if ((uintptr_t)nblk == end) {
+						nblk->length = blk->length - ((uintptr_t)nblk - (uintptr_t)blk);
+						nblk->next = blk->next;
+						blk = nblk;
+					}
+				}*/
+				kmem_avail(1);
 			}
 		}
 
