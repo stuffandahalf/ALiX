@@ -77,35 +77,54 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap, ssize_t reserve_sz, uintptr_
 	}
 
 	/* initialize memory layout */
-	for (i = 0, j = 0; i < mmap_sz; i++) {
+	for (i = 0; i < mmap_sz; i++) {
+		uintptr_t start, end, next;
+
 		if (mmap[i].type != MEMORY_TYPE_FREE) {
 			continue;
 		}
-		/* TODO: alignment */
-		/* reserve blocks here */
 
-		// blk = mmap[i].start;
-		// l = mmap[i].length;
-		// for (j = 0; j < reserve_sz; j++) {
-		// 	if (overlap(mmap[i].start, mmap[i].start + mmap[i].length, _reserve[j][0], _reserve[j][1])) {
 
-		// 	}
-		// }
+		start = (uintptr_t)mmap[i].start;
+		do {
+			end = (uintptr_t)mmap[i].start + mmap[i].length;
+			next = 0;
 
-		blk = mmap[i].start;
-		blk->length = mmap[i].length;
-		blk->magic = 0;
-		blk->next = NULL;
-		mmap[i].free = blk;
+			/* find any overlaps, adjust start and end sizes accordingly */
+			for (j = reserve_sz - 1; j >= 0; j--) {
+				if (overlap(start, end, _reserve[j][0], _reserve[j][1])) {
+					klogs("OVERLAP\t");
+					kloglu(start, 16);
+					klogc(':');
+					kloglu(end, 16);
+					klogc('\t');
+					kloglu(_reserve[j][0], 16);
+					klogc(':');
+					kloglu(_reserve[j][1], 16);
+					klogc('\n');
+
+					if (start >= _reserve[j][0]) {
+						start = _reserve[j][1];
+					} else {
+						end = min(end, _reserve[j][0]);
+						next = !next ? _reserve[j][1] : min(next, _reserve[j][1]);
+					}
+				}
+			}
+			
+			if (!mmap[i].free) {
+				mmap[i].free = (void *)start;
+			} else {
+				blk->next = (void *)start;
+			}
+			blk = (void *)start;
+			blk->magic = 0;
+			blk->length = end - start;
+			blk->next = NULL;
+
+			start = next;
+		} while (start != 0);
 	}
-
-	// for (i = 0; i < reserve_sz; i++) {
-	// 	if (mmap_reserve(mmap_sz, mmap, _reserve[i][0], _reserve[i][1])) {
-	// 		return 1;
-	// 	}
-	// 	/* REMOVE THIS */
-	// 	return 1;
-	// }
 
 	/* allocate and copy system mmap */
 	sys_physmmap = alloc(mmap_sz, mmap, sizeof(struct mmap_entry) * mmap_sz);
