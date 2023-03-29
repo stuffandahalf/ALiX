@@ -1,11 +1,13 @@
 #include <stddef.h>
+#include <config.h>
 #include <alix/dev.h>
 #include <alix/log.h>
+#include <alix/util.h>
 
 `for BUS in $KERNEL_ROOT_BUS; do
 	echo "extern struct dev $BUS;"
 done`
-struct dev *root_devs[] = {
+const struct dev *root_devs[] = {
 `for BUS in $KERNEL_ROOT_BUS; do
 	if [ $COMMA ]; then
 		printf ",\n"
@@ -15,7 +17,17 @@ struct dev *root_devs[] = {
 done
 printf "\n"`
 };
-long int root_devc = `echo "$KERNEL_ROOT_BUS" | wc -w | tr -d [:space:]`;
+const size_t root_devs_sz = LEN(root_devs);
+
+
+extern int kernel_bottom, kernel_top;
+uintptr_t mmap_reserve_ranges[][2] = {
+`for RNG in $MMAP_RESERVE; do
+	printf '\t{ %s },' "\`printf "$RNG" | sed -e 's/:/, /g'\`"
+done`
+	{ (uintptr_t)&kernel_bottom, (uintptr_t)&kernel_top }
+};
+const size_t mmap_reserve_ranges_sz = LEN(mmap_reserve_ranges);
 
 void
 anounce(void)

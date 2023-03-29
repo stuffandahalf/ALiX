@@ -1,13 +1,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <config.h>
 #include <alix/log.h>
 
 unsigned char *const framebuffer = (unsigned char *)0xb8000;
-
-// extern const size_t bus_root_count;
-
-extern void anounce(void);
 
 void
 main(void)

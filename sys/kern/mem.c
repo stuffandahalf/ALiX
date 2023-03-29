@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <config.h>
 #include <alix/mem.h>
 #include <alix/log.h>
 #include <alix/util.h>
@@ -6,12 +7,12 @@
 struct mmap_entry *sys_physmmap = NULL;
 ssize_t sys_physmmap_sz = 0;
 
-extern int kernel_bottom, kernel_top;
+// extern int kernel_bottom, kernel_top;
 
-const uintptr_t ALWAYS_RESERVE[][2] = {
-	{ (uintptr_t)&kernel_bottom, (uintptr_t)&kernel_top }
-};
-#define ALWAYS_RESERVE_SZ LEN(ALWAYS_RESERVE)
+// const uintptr_t ALWAYS_RESERVE[][2] = {
+// 	{ (uintptr_t)&kernel_bottom, (uintptr_t)&kernel_top }
+// };
+// #define ALWAYS_RESERVE_SZ LEN(ALWAYS_RESERVE)
 
 void *
 memcpy(void *restrict dest, const void *restrict src, size_t n)
@@ -35,16 +36,16 @@ memcpy(void *restrict dest, const void *restrict src, size_t n)
 #define overlap(s1, e1, s2, e2) (max((s1), (s2)) < min((e1), (e2)))
 
 int
-kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap, ssize_t reserve_sz, uintptr_t reserve[][2])
+kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap)//, ssize_t reserve_sz, uintptr_t reserve[][2])
 {
 	ssize_t i, j, k;
 	size_t l;
 	uintptr_t *range;;
 	struct memblk *blk;
-	uintptr_t _reserve[reserve_sz + ALWAYS_RESERVE_SZ][2];
+	// uintptr_t mmap_reserve_ranges[mmap_reserve_ranges_sz + ALWAYS_RESERVE_SZ][2];
 
 	/* combine machine reserved ranges with always reserved ranges */
-	for (i = 0; i < ALWAYS_RESERVE_SZ; i++) {
+	/*for (i = 0; i < ALWAYS_RESERVE_SZ; i++) {
 		_reserve[i][0] = ALWAYS_RESERVE[i][0];
 		_reserve[i][1] = ALWAYS_RESERVE[i][1];
 	}
@@ -52,27 +53,27 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap, ssize_t reserve_sz, uintptr_
 		_reserve[i + ALWAYS_RESERVE_SZ][0] = reserve[i][0];
 		_reserve[i + ALWAYS_RESERVE_SZ][1] = reserve[i][1];
 	}
-	reserve_sz += ALWAYS_RESERVE_SZ;
+	reserve_sz += ALWAYS_RESERVE_SZ;*/
 
 	/* sort reserved ranges */
-	for (i = 0; i < reserve_sz; i++) {
-		for (j = i; j < reserve_sz; j++) {
-			if (_reserve[j][0] < _reserve[i][0]) {
+	for (i = 0; i < mmap_reserve_ranges_sz; i++) {
+		for (j = i; j < mmap_reserve_ranges_sz; j++) {
+			if (mmap_reserve_ranges[j][0] < mmap_reserve_ranges[i][0]) {
 				for (k = 0; k < 2; k++) {
-					range[k] = _reserve[j][k];
-					_reserve[j][k] = _reserve[i][k];
-					_reserve[i][k] = range[k];
+					range[k] = mmap_reserve_ranges[j][k];
+					mmap_reserve_ranges[j][k] = mmap_reserve_ranges[i][k];
+					mmap_reserve_ranges[i][k] = range[k];
 				}
 			}
 		}
 	}
 
 	/* print list of reserved ranges */
-	for (i = 0; i < reserve_sz; i++) {
+	for (i = 0; i < mmap_reserve_ranges_sz; i++) {
 		klogs("reserve ");
-		kloglu(_reserve[i][0], 16);
+		kloglu(mmap_reserve_ranges[i][0], 16);
 		klogc(':');
-		kloglu(_reserve[i][1], 16);
+		kloglu(mmap_reserve_ranges[i][1], 16);
 		klogc('\n');
 	}
 
@@ -91,23 +92,23 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap, ssize_t reserve_sz, uintptr_
 			next = 0;
 
 			/* find any overlaps, adjust start and end sizes accordingly */
-			for (j = reserve_sz - 1; j >= 0; j--) {
-				if (overlap(start, end, _reserve[j][0], _reserve[j][1])) {
+			for (j = mmap_reserve_ranges_sz - 1; j >= 0; j--) {
+				if (overlap(start, end, mmap_reserve_ranges[j][0], mmap_reserve_ranges[j][1])) {
 					klogs("OVERLAP\t");
 					kloglu(start, 16);
 					klogc(':');
 					kloglu(end, 16);
 					klogc('\t');
-					kloglu(_reserve[j][0], 16);
+					kloglu(mmap_reserve_ranges[j][0], 16);
 					klogc(':');
-					kloglu(_reserve[j][1], 16);
+					kloglu(mmap_reserve_ranges[j][1], 16);
 					klogc('\n');
 
-					if (start >= _reserve[j][0]) {
-						start = _reserve[j][1];
+					if (start >= mmap_reserve_ranges[j][0]) {
+						start = mmap_reserve_ranges[j][1];
 					} else {
-						end = min(end, _reserve[j][0]);
-						next = !next ? _reserve[j][1] : min(next, _reserve[j][1]);
+						end = min(end, mmap_reserve_ranges[j][0]);
+						next = !next ? mmap_reserve_ranges[j][1] : min(next, mmap_reserve_ranges[j][1]);
 					}
 				}
 			}

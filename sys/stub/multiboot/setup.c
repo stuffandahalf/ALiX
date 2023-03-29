@@ -149,9 +149,6 @@ init_mmap_simple(size_t lo, size_t hi)
 		{ .type = MEMORY_TYPE_FREE, .start = (void *)0, .length = lo * 1024, .free = NULL, .alloced = NULL },
 		{ .type = MEMORY_TYPE_FREE, .start = (void *)0x100000, .length = hi * 1024, .free = NULL, .alloced = NULL }
 	};
-	uintptr_t reserved[][2] = {
-		{ 0x0, 0x500 }
-	};
 
-	return kmem_init(LEN(mmap), mmap, LEN(reserved), reserved);
+	return kmem_init(LEN(mmap), mmap);//, LEN(reserved), reserved);
 }
