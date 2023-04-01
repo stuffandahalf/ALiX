@@ -40,20 +40,8 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap)//, ssize_t reserve_sz, uintp
 {
 	ssize_t i, j, k;
 	size_t l;
-	uintptr_t *range;;
+	uintptr_t *range;
 	struct memblk *blk;
-	// uintptr_t mmap_reserve_ranges[mmap_reserve_ranges_sz + ALWAYS_RESERVE_SZ][2];
-
-	/* combine machine reserved ranges with always reserved ranges */
-	/*for (i = 0; i < ALWAYS_RESERVE_SZ; i++) {
-		_reserve[i][0] = ALWAYS_RESERVE[i][0];
-		_reserve[i][1] = ALWAYS_RESERVE[i][1];
-	}
-	for (i = 0; i < reserve_sz; i++) {
-		_reserve[i + ALWAYS_RESERVE_SZ][0] = reserve[i][0];
-		_reserve[i + ALWAYS_RESERVE_SZ][1] = reserve[i][1];
-	}
-	reserve_sz += ALWAYS_RESERVE_SZ;*/
 
 	/* sort reserved ranges */
 	for (i = 0; i < mmap_reserve_ranges_sz; i++) {
@@ -68,6 +56,7 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap)//, ssize_t reserve_sz, uintp
 		}
 	}
 
+#ifndef NDEBUG
 	/* print list of reserved ranges */
 	for (i = 0; i < mmap_reserve_ranges_sz; i++) {
 		klogs("reserve ");
@@ -76,6 +65,7 @@ kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap)//, ssize_t reserve_sz, uintp
 		kloglu(mmap_reserve_ranges[i][1], 16);
 		klogc('\n');
 	}
+#endif
 
 	/* initialize memory layout */
 	for (i = 0; i < mmap_sz; i++) {
