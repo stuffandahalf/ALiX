@@ -2,8 +2,12 @@
 #include <config.h>
 #include <alix/dev.h>
 #include <alix/device.h>
+#include <alix/mem.h>
+#include <alix/log.h>
 
-struct device *devtree = NULL;
+// struct device *devtree = NULL;
+struct device **devtab = NULL;
+size_t devtab_sz = 0;
 
 int
 init_dev(void)
@@ -18,9 +22,22 @@ init_dev(void)
 }
 
 dev_t
-create_dev(struct dev *driver)
+create_dev(struct dev *driver, unsigned int nchannels)
 {
-	return NULL;
+	struct device *d;
+
+	d = kalloc(sizeof(struct device));
+	if (!d) {
+		klogs("Failed to allocate ");
+		kloglu(sizeof(struct device), 10);
+		klogs(" bytes\n");
+		return NULL;
+	}
+
+	// kfree(d);
+
+	// return NULL;
+	return d;
 }
 
 void

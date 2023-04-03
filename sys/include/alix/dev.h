@@ -10,18 +10,18 @@ struct dev {
 	const char *name;
 
 	/* driver registration functions */
-	void (*attach)(dev_t parent);
+	int (*attach)(dev_t parent);
 	void (*detach)(dev_t parent);
 
 	/* driver instance functions */
-	int (*open)(dev_t device, int flags);
-	int (*close)(dev_t device);
+	int (*open)(dev_t device, unsigned int channel, int flags);
+	int (*close)(dev_t device, unsigned int channel);
 	int (*read)(dev_t device, void *buffer, size_t n);
 	int (*write)(dev_t device, void *buffer, size_t n);
 	void (*ioctl)(dev_t device);
 };
 
-dev_t create_dev(struct dev *driver);
+dev_t create_dev(struct dev *driver, unsigned int nchannels);
 void destroy_dev(dev_t d);
 
 #endif /* ALIX_DEV_H */
