@@ -1,24 +1,37 @@
 #include <stddef.h>
-#include <alix/bus.h>
+#include <config.h>
+#include <alix/dev.h>
+#include <alix/log.h>
+#include <alix/util.h>
 
 `for BUS in $KERNEL_ROOT_BUS; do
-	echo "extern struct bus ${BUS}_bus;"
+	echo "extern struct dev $BUS;"
 done`
-struct bus *bus_root[] = {
+const struct dev *root_devs[] = {
 `for BUS in $KERNEL_ROOT_BUS; do
 	if [ $COMMA ]; then
 		printf ",\n"
 	fi
-	printf "\t&%s_bus" "$BUS"
+	printf "\t&%s" "$BUS"
 	COMMA=1
 done
 printf "\n"`
 };
-size_t bus_root_count = `echo "$KERNEL_ROOT_BUS" | wc -w | tr -d [:space:]`;
+const size_t root_devs_sz = LEN(root_devs);
+
+
+extern int kernel_bottom, kernel_top;
+uintptr_t mmap_reserve_ranges[][2] = {
+`for RNG in $MMAP_RESERVE; do
+	printf '\t{ %s },' "\`printf "$RNG" | sed -e 's/:/, /g'\`"
+done`
+	{ (uintptr_t)&kernel_bottom, (uintptr_t)&kernel_top }
+};
+const size_t mmap_reserve_ranges_sz = LEN(mmap_reserve_ranges);
 
 void
 anounce(void)
 {
-	//write_serial(\"ALiX ${KERNEL_VERSION}\\\\n\");
-	//write_serial(\"Copyright (c) 2022 Gregory Norton\\\\n\");
+	klogs(\"ALiX ${SYSTEM_VERSION}\\\\n\");
+	klogs(\"Copyright (c) 2022,2023 Gregory Norton\\\\n\");
 }

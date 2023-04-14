@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include <alix/inode.h>
+
 struct fs {
 	struct fs_type {
 		uint8_t mbr;
@@ -10,8 +12,9 @@ struct fs {
 		const char *apm;
 	} type;
 	const char *name;
-	int (*init)(unsigned long int start, unsigned long int end);
-	int (*write)(const char *path);
+	int (*init)(dev_t d);
+	int (*read)(dev_t d, struct inode *ip, void *buf, size_t n);
+	int (*write)(dev_t d, struct inode *ip, void *buf, size_t n);
 };
 
 #endif /* FS_FS_H */

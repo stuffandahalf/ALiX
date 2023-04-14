@@ -3,15 +3,19 @@
 
 #define __NEED_SSIZE_T 1
 #include <stddef.h>
+#include <cdefs.h>
 
 #define MEMBLK_MAGIC_ALLOCED 0xA10C
-#define MEMBLK_MIN_SIZE (1 << 5) /* 32 bytes */
-#define MMAP_MAX_BLOCKS 15
+// #define MEMBLK_MIN_SIZE (1 << 5) /* 32 bytes */
+#define MEMBLK_ALIGNMENT 16
 
 /* type used to identify a block of memory by alloc/free */
 struct memblk {
 	unsigned short int magic;
-	ssize_t exp;
+	// causes looping?
+	// struct mmap_entry *parent;
+	size_t length;
+	struct memblk *next;
 };
 
 /* type used to define the computer's memory map */
@@ -24,16 +28,25 @@ struct mmap_entry {
 	int type;
 	void *start;
 	size_t length;
-	ssize_t exp[MMAP_MAX_BLOCKS];
+	struct memblk *free;
+	struct memblk *alloced;
 };
 
-int kmem_init(struct mmap_entry *mmap, size_t entryc);
+int kmem_init(ssize_t mmap_sz, struct mmap_entry *mmap);
 size_t kmem_avail(int debug);
 
-void *memcpy(void *dest, const void *src, size_t n);
+void *memcpy(void *restrict dest, const void *restrict src, size_t n);
 
-void *kalloc(size_t size);
-void *krealloc(void *ptr, size_t size);
-void kfree(void *ptr);
+int mmap_reserve(ssize_t mmap_sz, struct mmap_entry *mmap, uintptr_t start, uintptr_t end);
+void *alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size);
+void *realloc(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr, size_t size);
+void free(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr);
+
+extern struct mmap_entry *sys_physmmap;
+extern ssize_t sys_physmmap_sz;
+
+#define kalloc(sz) alloc(sys_physmmap_sz, sys_physmmap, (sz))
+#define krealloc(ptr, sz) realloc(sys_physmmap_sz, sys_physmmap, (ptr), (sz))
+#define kfree(ptr) free(sys_physmmap_sz, sys_physmmap, (ptr))
 
 #endif /* ALIX_MEM_H */

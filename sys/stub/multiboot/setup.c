@@ -3,183 +3,152 @@
 #include <multiboot.h>
 #include <alix/device.h>
 #include <alix/mem.h>
-//#include <alix/x86/bios.h>
-
-extern int init_serial(void);
-extern void put_serial(uint8_t c);
-extern int get_serial(void);
-extern void write_serial(const char *str);
-
-extern void printl(int32_t num, uint8_t base);
-extern void printul(uint32_t num, uint8_t base);
+#include <alix/log.h>
+#include <alix/util.h>
 
 static int init_mmap(struct multiboot_info *mbd);
 
-extern struct device early_console;
+//~ extern struct device early_console;
+
+int
+memtest(size_t n, size_t esz)
+{
+	void *ptrs[n];
+	size_t before, middle, after;
+	ssize_t i;
+
+	before = kmem_avail(0);
+
+	for (i = 0; i < n; i++) {
+		ptrs[i] = kalloc(esz);
+	}
+
+	middle = kmem_avail(0);
+	for (i = n - 1; i >= 0; i--) {
+		kfree(ptrs[i]);
+	}
+
+	after = kmem_avail(0);
+
+	if (after != before) {
+		klogs("MEMORY NOT FREED\nBEFORE: ");
+		kloglu(before, 10);
+		klogs("  MIDDLE: ");
+		kloglu(middle, 10);
+		klogs("  AFTER: ");
+		kloglu(after, 10);
+		klogc('\n');
+
+		kmem_avail(1);
+	}
+	return after != before;
+}
 
 void
 setup32(multiboot_info_t *mbd)
 {
 	int i;
-	//~ void *a, *b;
 
-	if (init_serial()) {
-		return;
-	}
-	write_serial("Hello Serial World!\n");
+	// klogs((const char *)mbd->boot_loader_name);
+	// klogc('\n');
+	// klogld(mbd->mmap_length, 10);
+	// klogc('\n');
 
-	write_serial((const char *)mbd->boot_loader_name);
-	put_serial('\n');
-	printl(mbd->mmap_length, 10);
-	put_serial('\n');
 	if (init_mmap(mbd)) {
-		write_serial("Failed to initialize memory\n");
+		klogs("Failed to initialize memory\n");
 		return;
 	}
-	write_serial("SURVIVED\n");
+	// _klog_flush();
+	// memtest(64, 1024 * 1024);
+	// memtest(64, 2 * 1024 * 1024);
 
-	write_serial("MEMORY LAYOUT\n");
-	kmem_avail(1);
-
-	//~ kmem_avail(1);
-	//~ b = kalloc(1024);
-	//~ kmem_avail(1);
-
-	//~ a = kalloc(1024);
-	//~ kmem_avail(1);
-	//~ printul((uintptr_t)a, 16);
-	//~ put_serial('\n');
-
-	//~ a = krealloc(a, 1024 * 1024);
-	//~ kmem_avail(1);
-	//~ printul((uintptr_t)a, 16);
-	//~ put_serial('\n');
-
-	//~ for (;;) {
-		//~ char c = get_serial();
-		//~ put_serial(c);
-	//~ }
+	// klogs("MEMORY LAYOUT\n");
+	// kloglu(kmem_avail(1), 10);
+	// klogc('\n');
 }
 
+static int init_mmap_simple(size_t lo, size_t hi);
 
-#define PUSH(T, var) { \
-	T *sp; \
-	__asm__ __volatile__ ( \
-		"subl %1, %%esp\n\t" \
-		"movl %%esp, %0\n\t" \
-		: "=r"(sp) \
-		: "r"(sizeof(T)) \
-	); \
-	*sp = var; \
-}
-
-#define PUSHW(word) __asm__ __volatile__ ("pushw %0\n\t" : : "r"(word))
-#define PUSHL(longword) __asm__ __volatile__ ("pushl %0\n\t" : : "r"(longword))
-
-#define POP(T, var) { \
-	T *sp; \
-	__asm__ __volatile__ ( \
-		"movl %%esp, %0\n\t" \
-		: "=r"(sp) \
-	); \
-	var = *sp; \
-	__asm__ __volatile__ ( \
-		"addl %0, %%esp\n\t" \
-		: \
-		: "r"(sizeof(T)) \
-	); \
-}
-#define POPW(word) __asm__("popw %0\n\t" : "=r"(word))
-#define POPL(longword) __asm__("popl %0\n\t" : "=r"(longword))
-
+/* TODO: Implement new memory map init */
+/* - find number of mmap entries */
+/* - use first block of sufficient size to allocate new system mmap */
+/* - copy details over to new mmap */
 static int
 init_mmap(multiboot_info_t *mbd)
 {
-	int ret;
-	long int i, j;
-	uintptr_t adjust;
-	size_t entries = 0, mmap_sz;
-	unsigned short int *mmap_entry_words;
 	struct multiboot_mmap_entry *mb_mmap;
-	struct mmap_entry blk, *mmap;
 
-	if (mbd->flags & MULTIBOOT_INFO_MEM_MAP) {
+	if (0 && mbd->flags & MULTIBOOT_INFO_MEM_MAP) {
+#if 0
+		mmap_sz = 0;
+		for (mb_mmap = (void *)mbd->mmap_addr;
+			(uintptr_t)mb_mmap < (mbd->mmap_addr + mbd->mmap_length);
+			mb_mmap += mb_mmap->size) {
+			mmap_sz++;
+		}
+		kloglu(mmap_sz, 10);
+
 		mb_mmap = (void *)mbd->mmap_addr;
-		for (i = 0; i < mbd->mmap_length; i++) {
+        while ((uintptr_t)mb_mmap < (mbd->mmap_addr + mbd->mmap_length)) {
 			blk.start = (void *)(uintptr_t)mb_mmap->addr;
 			blk.length = mb_mmap->len;
+			blk.maxexp = 0;
+			// while ((blk.length >> blk.maxexp) > MEMBLK_MIN_SIZE) blk.maxexp++;
+
+			kloglu((uintptr_t)blk.start, 16);
+			klogc('\t');
+			kloglu(blk.length, 10);
+			klogc('\t');
+			kloglu(log2(blk.length), 10);
+			// kloglu(blk.maxexp, 10);
+			klogc('\t');
+			kloglu(mb_mmap->type, 10);
+			klogc('\n');
+
 			switch (mb_mmap->type) {
 			case MULTIBOOT_MEMORY_AVAILABLE:
 				blk.type = MEMORY_TYPE_FREE;
-				//~ printl(PORT, blk.length, 10);
-				//~ write_serial(PORT, "available bytes");
 				break;
 			case MULTIBOOT_MEMORY_RESERVED:
 			case MULTIBOOT_MEMORY_BADRAM:
-				//~ write_serial(PORT, "unavailable");
 				blk.type = MEMORY_TYPE_UNAVAILABLE;
 				break;
 			case MULTIBOOT_MEMORY_ACPI_RECLAIMABLE:
 				blk.type = MEMORY_TYPE_RECLAIMABLE;
 				break;
 			case MULTIBOOT_MEMORY_NVS:
-				//~ write_serial(PORT, "TODO: Figure out NVS memory type");
+				klogs("TODO: Figure out NVS memory type\n");
 				break;
 			default:
 				blk.type = 0;
 			}
 			if (blk.type) {
-				// store for later
-				PUSH(struct mmap_entry, blk);
-				entries++;
+				/* attempt to allocate a memory map */
+				mmap = alloc(&blk, 1, sizeof(struct mmap_entry) * mbd->mmap_length);
+				if (mmap) {
+					break;
+				}
 			}
 			mb_mmap = ((void *)mb_mmap) + mb_mmap->size + offsetof(struct multiboot_mmap_entry, addr);
+			// mb_mmap = (void *)((uintptr_t)mb_mmap + mb_mmap->size + sizeof(mb_mmap->size));
 		}
+#endif
 	} else if (mbd->flags & MULTIBOOT_INFO_MEMORY) {
-		blk.start = (void *)0;
-		blk.length = mbd->mem_lower;
-		blk.type = MEMORY_TYPE_FREE;
-		PUSH(struct mmap_entry, blk);
-		entries++;
-
-		blk.start = (void *)0x100000;
-		blk.length = mbd->mem_upper;
-		blk.type = MEMORY_TYPE_FREE;
-		PUSH(struct mmap_entry, blk);
-		entries++;
-	} else {
-		return 1;
+		if (init_mmap_simple(mbd->mem_lower, mbd->mem_upper)) {
+			return 1;
+		}
 	}
-
-	/* set current stack pointer as temporary mmap */
-	__asm__ __volatile__ (
-		"movl %%esp, %0\n\t"
-		: "=r"(mmap)
-	);
-	mmap_sz = sizeof(struct mmap_entry) * entries;
-
-	/* align stack to 4-byte boundary */
-	if ((adjust = mmap_sz % sizeof(uint32_t))) {
-		__asm__ __volatile__ (
-			"subl %0, %%esp\n\t"
-			:
-			: "m"(adjust)
-		);
-	}
-
-	ret = kmem_init(mmap, entries);
-	/* free temporary mmap */
-	__asm__ __volatile__ (
-		"addl %0, %%esp\n\t"
-		:
-		: "r"((uintptr_t)mmap_sz + adjust)
-	);
-	if (ret) {
-		write_serial("Failed to initialize system memory map\n");
-		return 1;
-	}
-
-	write_serial("initialized memory map\n");
 
 	return 0;
+}
+
+static int
+init_mmap_simple(size_t lo, size_t hi)
+{
+	struct mmap_entry mmap[] = {
+		{ .type = MEMORY_TYPE_FREE, .start = (void *)0, .length = lo * 1024, .free = NULL, .alloced = NULL },
+		{ .type = MEMORY_TYPE_FREE, .start = (void *)0x100000, .length = hi * 1024, .free = NULL, .alloced = NULL }
+	};
+
+	return kmem_init(LEN(mmap), mmap);//, LEN(reserved), reserved);
 }

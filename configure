@@ -23,7 +23,7 @@
 
 # functions to simplify makefile generation
 usage() {
-	printf "usage: %s [-A architecture] [-B build dir] [-C confname] [-F kernel format] [-h] [-i install dir] [-j nthreads] [-M machine] [-v+]\n" $1
+	printf "usage: %s [-A architecture] [-B build dir] [-C confname] [-D] [-F kernel format] [-h] [-i install dir] [-j nthreads] [-M machine] [-v+]\n" $1
 }
 
 log() {
@@ -125,12 +125,16 @@ if [ -z "$CONFIGURED" ]; then
 	export OBJ_DIR
 	KERNEL_CONFIG="GENERIC"
 	export KERNEL_CONFIG
+	DEBUG_BUILD=
+	export DEBUG_BUILD
+	SYSTEM_VERSION=`cat VERSION 2>/dev/null || git log HEAD -n1 --format="%h"`
+	export SYSTEM_VERSION
 
 	#~ OUTPUT_DIR="`basedir "$0"`"
 	INSTALL_DIR="$HOME/alix"
 	export INSTALL_DIR
 
-	while getopts 'A:B:C:F:hi:j:M:v' opt; do
+	while getopts 'A:B:C:DF:hi:j:M:v' opt; do
 		case $opt in
 			(A)
 				ARCH_ARG=$OPTARG
@@ -138,6 +142,7 @@ if [ -z "$CONFIGURED" ]; then
 				;;
 			(B) BUILD_DIR=$OPTARG;;
 			(C) KERNEL_CONFIG=$OPTARG;;
+			(D) DEBUG_BUILD=1;;
 			(F) KERNEL_FORMAT=$OPTARG;;
 			(h) usage "$0"; exit 1;;
 			(i) INSTALL_DIR="$OPTARG";;
@@ -153,7 +158,7 @@ if [ -z "$CONFIGURED" ]; then
 				;;
 			(M) MACHINE="$OPTARG";;
 			(o) OBJ_DIR="$OPTARG";;
-			(v) VERBOSE=`dc -e "$VERBOSE 1 + p"`;;
+			(v) VERBOSE=$(($VERBOSE + 1));;
 			(?) usage "$0" >&2; exit 1;;
 		esac
 	done
@@ -173,10 +178,17 @@ if [ -z "$CONFIGURED" ]; then
 	fi
 	log 0 "TARGETING $TARGET_ARCH"
 
+	if [ $DEBUG_BUILD ]; then
+		CFLAGS="-Og -g $CFLAGS"
+		LDFLAGS="-Og -g $LDFLAGS"
+	else
+		CFLAGS="-DNDEBUG=1 $CFLAGS"
+	fi
+
 	CONFIGURED=1
 	export CONFIGURED
 fi
-shift `dc -e "$OPTIND 1 - p"`
+shift $(($OPTIND - 1))
 
 # Configure paths to required tools
 if [ -z "$LLVM_PREFIX" ]; then
@@ -357,7 +369,7 @@ for STATIC_LIB in $STATIC_LIB_TARGETS; do
 
 	# TODO: emit target linking
 	emit "`target_paths \`staticlib_fname $STATIC_LIB\``: subdirs $OBJECTS $EXTRA_DEPS\n"
-	emit "\t\"${AR}\" ${ARFLAGS} ${TARGET_ARFLAGS} \$(ALIX_ARFLAGS) `target_paths \`staticlib_fname \"$STATIC_LIB\"\`` $OBJECTS\n"
+	emit "\t\"${AR}\" ${ARFLAGS} ${TARGET_ARFLAGS} \$(ALIX_ARFLAGS) \"`target_paths \`staticlib_fname \"$STATIC_LIB\"\``\" $OBJECTS\n"
 	emit "\n"
 	emit_target_deps $TARGET_SOURCES
 done
@@ -372,7 +384,7 @@ for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 
 	# TODO: emit target linking
 	emit "`target_paths \`dynlib_fname \"$DYNAMIC_LIB\"\``: subdirs $OBJECTS $EXTRA_DEPTS\n"
-	emit "\t\"${LD}\" $LDFLAGS \$(ALIX_LDFLAGS) -shared -o `target_paths \`dynlib_fname \"$DYNAMIC_LIB\"\`` $OBJECTS\n"
+	emit "\t\"${LD}\" $LDFLAGS \$(ALIX_LDFLAGS) -shared -o \"`target_paths \`dynlib_fname \"$DYNAMIC_LIB\"\``\" $OBJECTS\n"
 	emit "\n"
 	emit_target_deps $TARGET_SOURCES
 done
@@ -400,16 +412,16 @@ for SUBDIR in $SUBDIRS; do
 	emit "\tcd \"$SUBDIR\" && \$(MAKE) clean\n"
 done
 for ARTIFACT in $BUILD_ARTIFACTS; do
-	emit "\trm -f $ARTIFACT\n"
+	emit "\trm -f \"$ARTIFACT\"\n"
 done
 for TARGET in `target_paths $TARGET_ARTIFACTS`; do
 	emit "\trm -f \"$TARGET\"\n"
 done
 for STATIC_LIB in $STATIC_LIB_TARGETS; do
-	emit "\trm -f `target_paths \`staticlib_fname $STATIC_LIB\``\n"
+	emit "\trm -f \"`target_paths \`staticlib_fname $STATIC_LIB\``\"\n"
 done
 for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
-	emit "\trm -f `target_paths \`dynlib_fname $DYNAMIC_LIB\``\n"
+	emit "\trm -f \"`target_paths \`dynlib_fname $DYNAMIC_LIB\``\"\n"
 done
 emit "\trm -rf \"$OBJ_DIR$RDIR\"\n"
 for BUILD_DIR in $BUILD_DIRS; do
