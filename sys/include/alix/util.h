@@ -13,7 +13,7 @@
 #define NOT_IMPLEMENTED()
 #endif
 
-#define PANIC() LOC();
+#define PANIC() LOC(); klogs("PANIC\n"); _klog_flush(); while (1);
 
 #define LIST_INCSZ 3
 #define LIST(T) \
@@ -42,7 +42,7 @@
 #define LIST_APPEND(T, l, e) { \
 	if ((l)->size == (l)->length) { \
 		(l)->size += LIST_INCSZ; \
-		(l)->list = krealloc((l)->list, sizeof(T) * (l)->size) \
+		(l)->list = krealloc((l)->list, sizeof(T) * (l)->size); \
 	} \
 	(l)->list[(l)->length++] = (e); \
 }

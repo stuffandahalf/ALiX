@@ -12,10 +12,12 @@
 
 // struct device *devtree = NULL;
 // struct device **devtab = NULL;
-struct dev **devtab = NULL;
-size_t devtab_sz = 0, devtab_len = 0;
+// struct dev **devtab = NULL;
+// size_t devtab_sz = 0, devtab_len = 0;
 
 // LIST(struct dev) devtab = LIST_INIT;
+LIST(struct dev*) drivers = LIST_INIT;
+LIST(dev_t) devices = LIST_INIT;
 
 int
 init_dev(void)
@@ -79,21 +81,11 @@ create_dev(struct dev *driver, unsigned int nchannels, dev_t parent)
 	d->config = NULL;
 	d->parent = parent;
 
-	for (i = 0; i < devtab_len && !present; i++) {
-		present = devtab[i] == driver;
+	for (i = 0; i < drivers.length && !present; i++) {
+		present = drivers.list[i] == driver;
 	}
-
 	if (!present) {
-		if (devtab_sz == devtab_len) {
-			devtab_sz += DEVTAB_INCSZ;
-			devtab = krealloc(devtab, sizeof(struct dev) * devtab_sz);
-			if (!devtab) {
-				PANIC();
-			}
-		}
-
-		devtab[devtab_len] = driver;
-		devtab_len++;
+		LIST_APPEND(struct dev *, &drivers, driver);
 	}
 
 	for (i = 0; i < driver->instances.length && driver->instances.list[i] != NULL; i++);
@@ -102,15 +94,7 @@ create_dev(struct dev *driver, unsigned int nchannels, dev_t parent)
 	klogc('\n');
 	LIST_INSERT(dev_t, &driver->instances, i, d);
 
-	// for (devnmlen = 0; driver->name[devnmlen] != '\0'; devnmlen++);
-	// for (j = 1; i / j > 0; j++);
-	// devnmlen += j + 1;
-	
-	// d->name = kalloc(sizeof(char) * (devnmlen + j + 1));
-	// for (i = 0; i < devnmlen; i++) {
-	// 	d->name[i]
-	// }
-
+	LIST_APPEND(dev_t, &devices, d);
 
 	return d;
 }

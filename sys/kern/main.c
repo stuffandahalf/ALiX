@@ -20,6 +20,7 @@ main(void)
 	anounce();
 
 	init_dev();
+	init_vfs();
 	_klog_flush();
 
 	// kloglu(bus_root_count, 10);
