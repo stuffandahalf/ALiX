@@ -229,10 +229,18 @@ alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size)
 	return NULL;
 }
 
+// TODO: improve realloc efficiency
 void *
 realloc(ssize_t mmap_sz, struct mmap_entry *mmap, void *ptr, size_t size)
 {
-	return NULL;
+	void *new;
+	struct memblk *blk = ptr - sizeof(struct memblk);
+
+	new = alloc(mmap_sz, mmap, size);
+	memcpy(new, ptr, blk->length);
+	free(mmap_sz, mmap, ptr);
+
+	return new;
 }
 
 void

@@ -1,17 +1,24 @@
+#include <stddef.h>
 #include <stdint.h>
+
 #include <alix/dev.h>
+#include <alix/device.h>
 #include <alix/mem.h>
 #include <alix/log.h>
+#include <alix/util.h>
+
+#include <alix/dev/ns8250.h>
 
 static int isa_attach(dev_t parent);
 static void isa_detach(dev_t parent);
 
 static int isa_open(dev_t device, unsigned int channel, int flags);
 static int isa_close(dev_t device, unsigned int channel);
-static int isa_read(dev_t device, void *buffer, size_t n);
-static int isa_write(dev_t device, void *buffer, size_t n);
+static int isa_read(dev_t device, unsigned int channel, void *buffer, size_t n);
+static int isa_write(dev_t device, unsigned int channel, void *buffer, size_t n);
 static void isa_ioctl(dev_t device);
 
+#define BDA_ADDR ((void *)0x0400)
 #define BDA_COMPORTS_SZ 4
 #define BDA_LPTPORTS_SZ 3
 #define BDA_KBDBUF_SZ 32
@@ -31,12 +38,12 @@ static const struct bios_data_area {
 	uint16_t kbd_buf_start;
 	uint16_t kbd_buf_end;
 	uint8_t kbd_state;
-} __attribute__((__packed__)) *bda = (void *)0x0400;
-
-extern struct dev ns8250;
+} __attribute__((__packed__)) *bda = BDA_ADDR;
 
 struct dev isa = {
 	"isa",
+
+	LIST_INIT,
 
 	isa_attach,
 	isa_detach,
@@ -51,6 +58,10 @@ struct dev isa = {
 struct isa_config {
 	uint16_t base_port;
 };
+
+#define TOTAL_PORTS (64 * 1024)
+#define PORT_WORDS (TOTAL_PORTS / 16)
+uint16_t open_ports[PORT_WORDS] = { 0 };
 
 static int
 isa_attach(dev_t parent)
@@ -68,12 +79,13 @@ isa_attach(dev_t parent)
 			kloglu(bda->com_ports[i], 16);
 			klogc('\n');
 
-			bus = create_dev(&isa, 8);
+			bus = create_dev(&isa, NS8250_PORT_COUNT, parent);
 			if (!bus) {
 				klogs("Failed to create dev COM");
 				kloglu(i, 10);
 				klogc('\n');
 			}
+			bus->parent = NULL;
 			config = kalloc(sizeof(struct isa_config));
 			if (!config) {
 				klogs("Failed to allocate config for isa bus\n");
@@ -81,6 +93,7 @@ isa_attach(dev_t parent)
 				continue;
 			}
 			config->base_port = bda->com_ports[i];
+			bus->config = config;
 			if (ns8250.attach(bus)) {
 				kfree(config);
 				kfree(bus);
@@ -106,36 +119,55 @@ isa_attach(dev_t parent)
 static void
 isa_detach(dev_t parent)
 {
-
+	NOT_IMPLEMENTED();
 }
 
 static int
 isa_open(dev_t device, unsigned int channel, int flags)
 {
+	unsigned long int port = ((struct isa_config *)device->config)->base_port + channel;
+	int i = port / PORT_WORDS;
+	int mask = port % PORT_WORDS;
+	mask = 1 << mask;
+	if (open_ports[i] & mask) {
+		return 1;
+	}
+	open_ports[i] |= mask;
 	return 0;
 }
 
 static int
 isa_close(dev_t device, unsigned int channel)
 {
+	// NOT_IMPLEMENTED();
+	unsigned long int port = ((struct isa_config *)device->config)->base_port + channel;
+	int i = port / PORT_WORDS;
+	int mask = port % PORT_WORDS;
+	mask = 1 << mask;
+	if (!(open_ports[i] & mask)) {
+		return 1;
+	}
+	open_ports[i] &= ~mask;
 	return 0;
 }
 
 
 static int
-isa_read(dev_t device, void *buffer, size_t n)
+isa_read(dev_t device, unsigned int channel, void *buffer, size_t n)
 {
+	NOT_IMPLEMENTED();
 	return 0;
 }
 
 static int
-isa_write(dev_t device, void *buffer, size_t n)
+isa_write(dev_t device, unsigned int channel, void *buffer, size_t n)
 {
+	NOT_IMPLEMENTED();
 	return 0;
 }
 
 static void
 isa_ioctl(dev_t device)
 {
-
+	NOT_IMPLEMENTED();
 }
