@@ -63,6 +63,17 @@ struct isa_config {
 #define PORT_WORDS (TOTAL_PORTS / 16)
 uint16_t open_ports[PORT_WORDS] = { 0 };
 
+static uint8_t
+inb(uint16_t port) {
+	uint8_t b;
+	__asm__ __volatile__ (
+		"inb %%dx, %%al"
+		: "=a"(b)
+		: "d"(port)
+	);
+	return b;
+}
+
 static int
 isa_attach(dev_t parent)
 {

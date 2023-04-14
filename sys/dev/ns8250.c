@@ -19,17 +19,6 @@ static int ns8250_read(dev_t device, unsigned int channel, void *buf, size_t n);
 static int ns8250_write(dev_t device, unsigned int channel, void *buf, size_t n);
 static void ns8250_ioctl(dev_t device);
 
-
-uint8_t inb(uint16_t port) {
-	uint8_t b;
-	__asm__ __volatile__ (
-		"inb %%dx, %%al"
-		: "=a"(b)
-		: "d"(port)
-	);
-	return b;
-}
-
 struct dev ns8250 = {
 	"ttyNS",
 
@@ -75,17 +64,19 @@ ns8250_open(dev_t device, unsigned int channel, int flags)
 {
 	int i;
 	char byte;
+	if (channel != 0) {
+		return 1;
+	}
+
 	/* open all required parent channels */
-	if (channel == 0) {
-		for (i = 0; i < NS8250_PORT_COUNT; i++) {
-			device->parent->driver->open(device->parent, i, 0);
-		}
+	for (i = 0; i < NS8250_PORT_COUNT; i++) {
+		DEV_PARENT_OPEN(device, i, 0);
 	}
 
 	/* initialize device */
 	// ((struct tty *)device->config)->baud = 9600;
 	byte = NS8250_LINE_CTRL_BITS_8 | NS8250_LINE_CTRL_PARITY_NONE | NS8250_LINE_CTRL_STOP_BITS_1;
-	device->parent->driver->write(device->parent, NS8250_PORT_LINE_CTRL, &byte, 1);
+	DEV_PARENT_WRITE(device, NS8250_PORT_LINE_CTRL, &byte, 1);
 
 	return 0;
 }

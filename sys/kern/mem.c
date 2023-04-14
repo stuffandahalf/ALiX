@@ -182,13 +182,13 @@ alloc(ssize_t mmap_sz, struct mmap_entry *mmap, size_t size)
 	struct memblk *pblk, *blk, *nblk;
 
 	/* correct allignment */
-	if (rsz % MEMBLK_ALIGNMENT) {
-		kloglu(size, 10);
-		klogc('\t');
-		kloglu(MEMBLK_ALIGNMENT - rsz % MEMBLK_ALIGNMENT, 10);
-		klogc('\n');
-		rsz += MEMBLK_ALIGNMENT - rsz % MEMBLK_ALIGNMENT;
-	}
+	// if (rsz % MEMBLK_ALIGNMENT) {
+	// 	kloglu(size, 10);
+	// 	klogc('\t');
+	// 	kloglu(MEMBLK_ALIGNMENT - rsz % MEMBLK_ALIGNMENT, 10);
+	// 	klogc('\n');
+	// 	rsz += MEMBLK_ALIGNMENT - rsz % MEMBLK_ALIGNMENT;
+	// }
 
 	for (i = 0; i < mmap_sz; i++) {
 		if (mmap[i].type != MEMORY_TYPE_FREE) {
