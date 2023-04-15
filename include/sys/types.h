@@ -1,6 +1,6 @@
 #ifndef SYS_TYPES_H
 #define SYS_TYPES_H 1
 
-typedef unsigned long int ino_t;
+#include <alix/types.h>
 
 #endif /* SYS_TYPES_H */

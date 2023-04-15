@@ -20,6 +20,7 @@ main(void)
 	anounce();
 
 	init_dev();
+	// init_proc();
 	init_vfs();
 	_klog_flush();
 

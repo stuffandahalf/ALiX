@@ -3,28 +3,38 @@
 
 #include <alix/dev.h>
 #include <alix/mount.h>
-#include <sys/types.h>
+#include <alix/types.h>
 
-#define INODE_TYPE_FILE 0
-#define INODE_TYPE_DIR 1
-#define INODE_TYPE_LINK 2
-#define INODE_TYPE_SPECIAL 3
+#define INODE_FLAG_TYPE_FILE (1 << 10)
+#define INODE_FLAG_TYPE_DIR (2 << 10)
+#define INODE_FLAG_TYPE_LINK (3 << 10)
+#define INODE_FLAG_TYPE_SPECIAL (4 << 10)
+#define INODE_FLAG_PERM_READ (1 << 2)
+#define INODE_FLAG_PERM_WRITE (1 << 1)
+#define INODE_FLAG_PERM_EXEC (1 << 0)
+#define USER_PERMS(p) (p << 6)
+#define GROUP_PERMS(p) (p << 3)
+#define OTHER_PERMS(p) (p << 0)
 struct inode {
 	ino_t inum;
-	unsigned char type;
+	unsigned short flags;
 	// struct fs *filesystem;
 	struct mount *mnt;
-	void *metadata;
+	// void *metadata;
+	uid_t owner;
+	gid_t group;
 };
 
-#define FS_OPEN_FILE 0
-#define FS_OPEN_DIR 1
+struct file {
+	struct inode *ino;
+	unsigned short mode;
+};
 
 struct fs {
 	int (*mount)(struct mount *mnt, dev_t device);
 	struct inode *(*geti)(struct mount *mnt, ino_t inum);
-	int (*read)(struct inode *ino, void *buf, size_t count);
-	int (*write)(struct inode *ino, void *buf, size_t count);
+	int (*read)(struct file *fp, void *buf, size_t count);
+	int (*write)(struct file *fp, void *buf, size_t count);
 };
 
 int mount(struct inode *ino, dev_t device, struct fs *filsys);

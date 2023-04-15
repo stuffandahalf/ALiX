@@ -78,13 +78,6 @@ geti(const char *fname)
 			return NULL;
 		}
 
-		for (d2 = d1; *d2 != '\0' && *d2 != '/'; d2++) {
-			klogc(*d2);
-		}
-		if (d2 != d1) {
-			klogc('\n');
-		}
-
 		ino = m->fs->geti(m, ino->inum);
 
 		d1 = d2;
