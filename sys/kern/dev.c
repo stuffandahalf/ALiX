@@ -1,6 +1,6 @@
 #include <stddef.h>
 
-#include <config.h>
+#include <alix/config.h>
 #include <alix/dev.h>
 #include <alix/device.h>
 #include <alix/mem.h>

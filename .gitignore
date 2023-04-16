@@ -2,6 +2,7 @@
 *makefile
 # generated source files
 sys/config.c
+sys/include/alix/config.h
 # object directory
 obj
 

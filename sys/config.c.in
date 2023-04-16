@@ -1,5 +1,6 @@
 #include <stddef.h>
-#include <config.h>
+
+#include <alix/config.h>
 #include <alix/dev.h>
 #include <alix/log.h>
 #include <alix/util.h>
@@ -19,7 +20,6 @@ printf "\n"`
 };
 const size_t root_devs_sz = LEN(root_devs);
 
-
 extern int kernel_bottom, kernel_top;
 uintptr_t mmap_reserve_ranges[][2] = {
 `for RNG in $MMAP_RESERVE; do
@@ -32,6 +32,6 @@ const size_t mmap_reserve_ranges_sz = LEN(mmap_reserve_ranges);
 void
 anounce(void)
 {
-	klogs(\"ALiX ${SYSTEM_VERSION}\\\\n\");
+	klogs(\"ALiX (${TARGET_ARCH}/${KERNEL_IDENTIFIER}) ${SYSTEM_VERSION}\\\\n\");
 	klogs(\"Copyright (c) 2022,2023 Gregory Norton\\\\n\");
 }

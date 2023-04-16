@@ -1,8 +1,11 @@
-#ifndef CONFIG_H
-#define CONFIG_H 1
+#ifndef ALIX_CONFIG_H
+#define ALIX_CONFIG_H 1
 
 #include <stdint.h>
 #include <alix/dev.h>
+
+#define FILE_LIMIT (${KERNEL_FILE_LIMIT})
+#define FILE_NAME_LIMIT (${KERNEL_FILE_NAME_LIMIT})
 
 extern const struct dev *root_devs[];
 extern const size_t root_devs_sz;
@@ -12,4 +15,4 @@ extern const size_t mmap_reserve_ranges_sz;
 
 void anounce(void);
 
-#endif
+#endif /* ALIX_CONFIG_H */

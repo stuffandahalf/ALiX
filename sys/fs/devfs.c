@@ -1,19 +1,23 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <alix/device.h>
 #include <alix/fs.h>
 #include <alix/mem.h>
+#include <alix/lib/string.h>
 
 static int devfs_mount(struct mount *mnt, dev_t device);
 static struct inode *devfs_geti(struct mount *mnt, ino_t inum);
+static int devfs_readdir(struct file *fp, struct dirent *dp);
 static int devfs_read(struct file *fp, void *buf, size_t count);
 static int devfs_write(struct file *fp, void *buf, size_t count);
 
 struct fs devfs = {
 	devfs_mount,
 	devfs_geti,
-	devfs_read,
-	devfs_write
+	// devfs_read,
+	// devfs_write,
+	devfs_readdir
 };
 
 extern LIST(dev_t) devices;
@@ -58,6 +62,27 @@ devfs_geti(struct mount *mnt, ino_t inum)
 	}
 
 	return ino;
+}
+
+static int
+devfs_readdir(struct file *fp, struct dirent *dp)
+{
+	dev_t d;
+	size_t i, l;
+
+	if (!(fp->ino->flags & INODE_FLAG_TYPE_DIR)) {
+		return 1;
+	}
+
+	d = devices.list[fp->state.d.i];
+	l = strlen(d->name) + 1;
+
+	dp->d_ino = fp->state.d.i + 1;
+	for (i = 0; i < l; i++) {
+		dp->d_name[i] = d->name[i];
+	}
+
+	return 0;
 }
 
 static int

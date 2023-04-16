@@ -1,5 +1,5 @@
 #include <stdint.h>
-#include <config.h>
+#include <alix/config.h>
 #include <alix/mem.h>
 #include <alix/log.h>
 #include <alix/util.h>

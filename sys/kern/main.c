@@ -1,7 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <config.h>
+#include <alix/config.h>
 #include <alix/log.h>
 #include <alix/startup.h>
 
