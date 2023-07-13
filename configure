@@ -283,13 +283,14 @@ if [ -f "$DIR$IN_MAKEFILE" ]; then
 	IN_FILES="$DIR$IN_MAKEFILE"
 fi
 for ARCH_DIR in $INCLUDE_ARCH_DIRS; do
-	if [ -f "$DIR/$ARCH_DIR$IN_ADDL_MAKEFILE" ]; then
+	if [ -f "$DIR$ARCH_DIR/$IN_ADDL_MAKEFILE" ]; then
 		IN_FILES="$IN_FILES $DIR$ARCH_DIR/$IN_ADDL_MAKEFILE"
 	elif [ -f "$DIR/$ARCH_DIR.$IN_ADDL_MAKEFILE" ]; then
 		IN_FILES="$IN_FILES $DIR$ARCH_DIR.$IN_ADDL_MAKEFILE"
 	fi
 done
 
+# move to function and add support for importing dirs
 REBUILD=false
 if [ -f "$DIR$OUT_MAKEFILE" ]; then
 	if [ "$IN_FILES" != "" ]; then
