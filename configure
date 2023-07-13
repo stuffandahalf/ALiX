@@ -94,6 +94,7 @@ target_paths() {
 
 # Build Variables
 IN_MAKEFILE=make.conf
+IN_ADDL_MAKEFILE=make.append.conf
 IN_PREDEF_MAKEFILE=make.predef.conf
 OUT_MAKEFILE=makefile
 SRC_ROOT="`cd \`dirname $0\` && pwd`"
@@ -102,15 +103,18 @@ REQUIRED_C_STANDARD="c99"
 SUPPORTED_ARCHS="i386 amd64 ppc ppc64 armv6 aarch64 riscv32 riscv64"
 i386_ALTNAMES="i386 i486 i586 i686 i86pc 80386 80486 80586 80686"
 amd64_ALTNAMES="amd64 x86_64 x86-64"
-ppc_ALTNAMES="ppc powerpc"
-ppc64_ALTNAMES="ppc64 powerpc"
+ppc_ALTNAMES="ppc ppc32 powerpc powerpc32"
+ppc64_ALTNAMES="ppc64 powerpc64"
 armv6_ALTNAMES="arm32 arm armv6"
 aarch64_ALTNAMES="aarch64 arm64"
-riscv32_ALTNAMES="riscv32 risc-v riscv risc-v32"
-riscv64_ALTNAMES="riscv64 risc-v64 RISC-V"
+riscv32_ALTNAMES="riscv32 risc-v riscv risc-v32 rv"
+riscv64_ALTNAMES="riscv64 risc-v64 RISC-V rv64"
 
 i386_COMPATIBLE_TOOLCHAINS=amd64
 ppc_COMPATIBLE_TOOLCHAINS=ppc64
+
+i386_INCLUDE_ARCH_DIRS="x86"
+amd64_INCLUDE_ARCH_DIRS="x86"
 
 if [ -z "$CONFIGURED" ]; then
 	TARGET_ARCH=`uname -m`
@@ -177,6 +181,9 @@ if [ -z "$CONFIGURED" ]; then
 		exit 1
 	fi
 	log 0 "TARGETING $TARGET_ARCH"
+	eval "INCLUDE_ARCH_DIRS=\"$TARGET_ARCH \$${TARGET_ARCH}_INCLUDE_ARCH_DIRS\""
+	export INCLUDE_ARCH_DIRS
+	log 1 "Including files for \"$INCLUDE_ARCH_DIRS\""
 
 	if [ $DEBUG_BUILD ]; then
 		CFLAGS="-Og -g $CFLAGS"
@@ -262,18 +269,52 @@ SUBDIRS=
 set -e
 
 # look for makefile configuration file
+# if [ -f "$DIR$OUT_MAKEFILE" ]; then
+# 	if [ ! -f "$DIR$IN_MAKEFILE" ]; then
+# 		exit 0
+# 	elif [ "$DIR$IN_MAKEFILE" -ot "$DIR$OUT_MAKEFILE" -a "$0" -ot "$DIR$OUT_MAKEFILE" ]; then
+# 		exit 0
+# 	fi
+# elif [ ! -f "$DIR$IN_MAKEFILE" ]; then
+# 	exit 1
+# fi
+
+if [ -f "$DIR$IN_MAKEFILE" ]; then
+	IN_FILES="$DIR$IN_MAKEFILE"
+fi
+for ARCH_DIR in $INCLUDE_ARCH_DIRS; do
+	if [ -f "$DIR/$ARCH_DIR$IN_ADDL_MAKEFILE" ]; then
+		IN_FILES="$IN_FILES $DIR$ARCH_DIR/$IN_ADDL_MAKEFILE"
+	elif [ -f "$DIR/$ARCH_DIR.$IN_ADDL_MAKEFILE" ]; then
+		IN_FILES="$IN_FILES $DIR$ARCH_DIR.$IN_ADDL_MAKEFILE"
+	fi
+done
+
+REBUILD=false
 if [ -f "$DIR$OUT_MAKEFILE" ]; then
-	if [ ! -f "$DIR$IN_MAKEFILE" ]; then
-		exit 0
-	elif [ "$DIR$IN_MAKEFILE" -ot "$DIR$OUT_MAKEFILE" -a "$0" -ot "$DIR$OUT_MAKEFILE" ]; then
+	if [ "$IN_FILES" != "" ]; then
+		for F in $IN_FILES; do
+			if [ "$IN_FILE" -nt "$DIR$OUT_MAKEFILE" -o "$0" -nt "$DIR$OUT_MAKEFILE" ]; then
+				REBUILD=true
+				break
+			fi
+		done
+		if ! $REBUILD; then
+			exit 0
+		fi
+	else
 		exit 0
 	fi
-elif [ ! -f "$DIR$IN_MAKEFILE" ]; then
+elif [ "$IN_FILES" == "" ]; then
 	exit 1
 fi
 
 # Import directory make variables as shell variables
-. "$DIR$IN_MAKEFILE"
+for MF in $IN_FILES; do
+	log 1 "IMPORT build config from \"$MF\""
+	. "$MF"
+done
+
 
 for F in $CONFIG_FILES; do
 	eval "OUTFILE=\"\$`var_name $F`_OUTFILE\""
