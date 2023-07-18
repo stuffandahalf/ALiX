@@ -95,6 +95,7 @@ target_paths() {
 # Build Variables
 IN_MAKEFILE=make.conf
 IN_ADDL_MAKEFILE=make.append.conf
+IN_INCL_MAKEFILE=make.include.conf
 IN_PREDEF_MAKEFILE=make.predef.conf
 OUT_MAKEFILE=makefile
 SRC_ROOT="`cd \`dirname $0\` && pwd`"
@@ -316,6 +317,17 @@ for MF in $IN_FILES; do
 	. "$MF"
 done
 
+for ID in $INCLUDE_DIRS; do
+	if [ ! -f "$DIR$ID/$IN_INCL_MAKEFILE" ]; then
+		log 0 "MISSING IMPORT FILE \"$DIR$ID/$IN_INCL_MAKEFILE\""
+		exit 1
+	fi
+	log 1 "INCLUDE build config from \"$DIR$ID/$IN_INCL_MAKEFILE\""
+	_OLDDIR="$DIR"
+	DIR="$DIR$ID/"
+	. "$DIR$IN_INCL_MAKEFILE"
+	DIR="$_OLDDIR"
+done
 
 for F in $CONFIG_FILES; do
 	eval "OUTFILE=\"\$`var_name $F`_OUTFILE\""
