@@ -46,14 +46,48 @@ path_dirs() {
 	echo "$PATHS" | sed -e "s/:/\n/g"
 }
 
+pushvar() {
+	DELIM=${2:-;}
+	if [ -z `eval "echo \"\$_$1\""` ]; then
+		eval "_$1=\"\$$1\""
+	else
+		eval "_$1=\"\$$1$DELIM\$_$1\""
+	fi
+}
+
+popvar() {
+	DELIM=${2:-;}
+	eval "$1=\`echo \"\$_$1\" | cut -d'$DELIM' -f'1'\`"
+	eval "_$1=\`echo \"\$_$1\" | cut -d'$DELIM' -f'2-'\`"
+}
+
+# derived from https://unix.stackexchange.com/a/561933
 file_ts() {
 	if [ $# -lt 1 ]; then
 		return 1
 	fi
-	echo $((0`pax -x ustar -wd -- "$0" | dd bs=4 skip=34 count=3 2> /dev/null | tr -d '\0'`))
+	echo $((8#0`pax -x ustar -wd -- "$0" | dd bs=4 skip=34 count=3 2> /dev/null | tr -d '\0'`))
 }
 
 import_config() {
+	log 1 "IMPORT build config from \"$1\" (DIR: \"$2\")"
+
+	. $1
+	for ID in $INCLUDE_DIRS; do
+		log 1 "INCLUDE_DIR $1$ID/"
+		pushvar INCLUDE_DIRS
+		INCLUDE_DIRS=
+		pushvar RDIR
+		RDIR="$RDIR$2"
+
+		lookup_configs "$2$ID/"
+		
+		popvar RDIR
+		popvar INCLUDE_DIRS
+	done
+}
+
+lookup_configs() {
 	if [ ! "$1" -a -f "$DIR$IN_MAKEFILE" ]; then
 		IN_FILES="$DIR$IN_MAKEFILE"
 	elif [ "$1" -a -f "$DIR$1$IN_INCL_MAKEFILE" ]; then
@@ -68,10 +102,9 @@ import_config() {
 	done
 
 	if [ -z "$GENERATE" ]; then
-		GENERATE=true
+		GENERATE=false
 	fi
 	if [ -f "$DIR$OUT_MAKEFILE" ]; then
-		GENERATE=false
 		if [ -z "$IN_FILES" ]; then
 			return 0
 		fi
@@ -86,27 +119,27 @@ import_config() {
 		# 	return 0
 		# fi
 	elif [ "$IN_FILES" == "" ]; then
-		GENERATE=false
 		return 1
+	else
+		GENERATE=true
 	fi
 
+	# move to import_config to handle directory substitutions
 	# Import directory make variables as shell variables
 	for MF in $IN_FILES; do
 		log 1 "IMPORT build config from \"$MF\""
 		. "$MF"
-		echo "$INCLUDE_DIRS"
 		for ID in $INCLUDE_DIRS; do
 			log 1 "INCLUDE_DIR $1$ID/"
-			if [ -z "$INCLUDE_DIRS" ]; then
-				_INCLUDE_DIRS="$INCLUDE_DIRS"
-			else
-				_INCLUDE_DIRS="$INCLUDE_DIRS;$_INCLUDE_DIRS"
-			fi
+			pushvar INCLUDE_DIRS
 			INCLUDE_DIRS=
-			import_config "$1$ID/"
-			INCLUDE_DIRS=`echo "$_INCLUDE_DIRS" | cut -d';' -f'1'`
-			_INCLUDE_DIRS=`echo "$_INCLUDE_DIRS" | cut -d';' -f'2-'`
-			# log 5
+			pushvar RDIR
+			RDIR="$RDIR$1"
+
+			lookup_configs "$1$ID/"
+			
+			popvar RDIR
+			popvar INCLUDE_DIRS
 		done
 	done
 }
@@ -310,7 +343,6 @@ if [ $# -gt 0 ]; then
 fi
 
 RDIR="$_DIR"
-echo "$RDIR"
 if [ -z "$RDIR" ]; then
 	RDIR="/"
 fi
@@ -346,7 +378,7 @@ set -e
 # 	exit 1
 # fi
 
-import_config
+lookup_configs
 
 # if [ -f "$DIR$IN_MAKEFILE" ]; then
 # 	IN_FILES="$DIR$IN_MAKEFILE"
@@ -408,7 +440,6 @@ import_config
 # 	# echo "$DIR"
 # done
 
-echo "GENERATE=$GENERATE"
 if ! $GENERATE; then
 	exit 0
 fi
