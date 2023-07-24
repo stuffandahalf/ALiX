@@ -46,6 +46,71 @@ path_dirs() {
 	echo "$PATHS" | sed -e "s/:/\n/g"
 }
 
+file_ts() {
+	if [ $# -lt 1 ]; then
+		return 1
+	fi
+	echo $((0`pax -x ustar -wd -- "$0" | dd bs=4 skip=34 count=3 2> /dev/null | tr -d '\0'`))
+}
+
+import_config() {
+	if [ ! "$1" -a -f "$DIR$IN_MAKEFILE" ]; then
+		IN_FILES="$DIR$IN_MAKEFILE"
+	elif [ "$1" -a -f "$DIR$1$IN_INCL_MAKEFILE" ]; then
+		IN_FILES="$DIR$1$IN_INCL_MAKEFILE"
+	fi
+	for ARCH_DIR in $INCLUDE_ARCH_DIRS; do
+		if [ -f "$DIR$1$ARCH_DIR/$IN_ADDL_MAKEFILE" ]; then
+			IN_FILES="$IN_FILES $DIR$1$ARCH_DIR/$IN_ADDL_MAKEFILE"
+		elif [ -f "$DIR/$ARCH_DIR.$IN_ADDL_MAKEFILE" ]; then
+			IN_FILES="$IN_FILES $DIR$1$ARCH_DIR.$IN_ADDL_MAKEFILE"
+		fi
+	done
+
+	if [ -z "$GENERATE" ]; then
+		GENERATE=true
+	fi
+	if [ -f "$DIR$OUT_MAKEFILE" ]; then
+		GENERATE=false
+		if [ -z "$IN_FILES" ]; then
+			return 0
+		fi
+		for F in $IN_FILES; do
+			if [ "$IN_FILE" -nt "$DIR$OUT_MAKEFILE" -o "$0" -nt "$DIR$OUT_MAKEFILE" ]; then
+				GENERATE=true
+				break
+			fi
+		done
+		# if ! $GENERATE; then
+		# 	# exit 0
+		# 	return 0
+		# fi
+	elif [ "$IN_FILES" == "" ]; then
+		GENERATE=false
+		return 1
+	fi
+
+	# Import directory make variables as shell variables
+	for MF in $IN_FILES; do
+		log 1 "IMPORT build config from \"$MF\""
+		. "$MF"
+		echo "$INCLUDE_DIRS"
+		for ID in $INCLUDE_DIRS; do
+			log 1 "INCLUDE_DIR $1$ID/"
+			if [ -z "$INCLUDE_DIRS" ]; then
+				_INCLUDE_DIRS="$INCLUDE_DIRS"
+			else
+				_INCLUDE_DIRS="$INCLUDE_DIRS;$_INCLUDE_DIRS"
+			fi
+			INCLUDE_DIRS=
+			import_config "$1$ID/"
+			INCLUDE_DIRS=`echo "$_INCLUDE_DIRS" | cut -d';' -f'1'`
+			_INCLUDE_DIRS=`echo "$_INCLUDE_DIRS" | cut -d';' -f'2-'`
+			# log 5
+		done
+	done
+}
+
 src2obj() {
 	for SRC in $@; do
 		printf "$OBJ_DIR$RDIR`printf "$SRC" | sed -e "s/\..*$/\.o /"`"
@@ -245,6 +310,7 @@ if [ $# -gt 0 ]; then
 fi
 
 RDIR="$_DIR"
+echo "$RDIR"
 if [ -z "$RDIR" ]; then
 	RDIR="/"
 fi
@@ -280,54 +346,72 @@ set -e
 # 	exit 1
 # fi
 
-if [ -f "$DIR$IN_MAKEFILE" ]; then
-	IN_FILES="$DIR$IN_MAKEFILE"
+import_config
+
+# if [ -f "$DIR$IN_MAKEFILE" ]; then
+# 	IN_FILES="$DIR$IN_MAKEFILE"
+# fi
+# for ARCH_DIR in $INCLUDE_ARCH_DIRS; do
+# 	if [ -f "$DIR$ARCH_DIR/$IN_ADDL_MAKEFILE" ]; then
+# 		IN_FILES="$IN_FILES $DIR$ARCH_DIR/$IN_ADDL_MAKEFILE"
+# 	elif [ -f "$DIR/$ARCH_DIR.$IN_ADDL_MAKEFILE" ]; then
+# 		IN_FILES="$IN_FILES $DIR$ARCH_DIR.$IN_ADDL_MAKEFILE"
+# 	fi
+# done
+
+# # move to function and add support for importing dirs
+# REBUILD=false
+# if [ -f "$DIR$OUT_MAKEFILE" ]; then
+# 	if [ "$IN_FILES" != "" ]; then
+# 		for F in $IN_FILES; do
+# 			if [ "$IN_FILE" -nt "$DIR$OUT_MAKEFILE" -o "$0" -nt "$DIR$OUT_MAKEFILE" ]; then
+# 				REBUILD=true
+# 				break
+# 			fi
+# 		done
+# 		if ! $REBUILD; then
+# 			exit 0
+# 		fi
+# 	else
+# 		exit 0
+# 	fi
+# elif [ "$IN_FILES" == "" ]; then
+# 	exit 1
+# fi
+
+# # Import directory make variables as shell variables
+# for MF in $IN_FILES; do
+# 	log 1 "IMPORT build config from \"$MF\""
+# 	. "$MF"
+# done
+
+# for ID in $INCLUDE_DIRS; do
+# 	if [ ! -f "$DIR$ID/$IN_INCL_MAKEFILE" ]; then
+# 		log 0 "MISSING IMPORT FILE \"$DIR$ID/$IN_INCL_MAKEFILE\""
+# 		exit 1
+# 	fi
+# 	log 1 "INCLUDE build config from \"$DIR$ID/$IN_INCL_MAKEFILE\""
+# 	# import_config
+# 	# echo "$DIR"
+# 	# if [ -z "$_OLDDIR" ]; then
+# 	# 	_OLDDIR="$DIR"
+# 	# else
+# 	# 	_OLDDIR="$DIR;$_OLDDIR"
+# 	# fi
+# 	# _DIR="$RDIR`basename "$ID"`/"
+# 	# IMPORT="true"
+# 	# export IMPORT
+# #	. $0 "$DIR"$DIR$IN_INCL_MAKEFILE"
+# 	# IMPORT=""
+# 	# DIR=`echo "$_OLDDIR" | cut -d';' -f'0'`
+# 	# _OLDDIR=`echo "$_OLDDIR" | cut -d';' -f'1-'`
+# 	# echo "$DIR"
+# done
+
+echo "GENERATE=$GENERATE"
+if ! $GENERATE; then
+	exit 0
 fi
-for ARCH_DIR in $INCLUDE_ARCH_DIRS; do
-	if [ -f "$DIR$ARCH_DIR/$IN_ADDL_MAKEFILE" ]; then
-		IN_FILES="$IN_FILES $DIR$ARCH_DIR/$IN_ADDL_MAKEFILE"
-	elif [ -f "$DIR/$ARCH_DIR.$IN_ADDL_MAKEFILE" ]; then
-		IN_FILES="$IN_FILES $DIR$ARCH_DIR.$IN_ADDL_MAKEFILE"
-	fi
-done
-
-# move to function and add support for importing dirs
-REBUILD=false
-if [ -f "$DIR$OUT_MAKEFILE" ]; then
-	if [ "$IN_FILES" != "" ]; then
-		for F in $IN_FILES; do
-			if [ "$IN_FILE" -nt "$DIR$OUT_MAKEFILE" -o "$0" -nt "$DIR$OUT_MAKEFILE" ]; then
-				REBUILD=true
-				break
-			fi
-		done
-		if ! $REBUILD; then
-			exit 0
-		fi
-	else
-		exit 0
-	fi
-elif [ "$IN_FILES" == "" ]; then
-	exit 1
-fi
-
-# Import directory make variables as shell variables
-for MF in $IN_FILES; do
-	log 1 "IMPORT build config from \"$MF\""
-	. "$MF"
-done
-
-for ID in $INCLUDE_DIRS; do
-	if [ ! -f "$DIR$ID/$IN_INCL_MAKEFILE" ]; then
-		log 0 "MISSING IMPORT FILE \"$DIR$ID/$IN_INCL_MAKEFILE\""
-		exit 1
-	fi
-	log 1 "INCLUDE build config from \"$DIR$ID/$IN_INCL_MAKEFILE\""
-	_OLDDIR="$DIR"
-	DIR="$DIR$ID/"
-	. "$DIR$IN_INCL_MAKEFILE"
-	DIR="$_OLDDIR"
-done
 
 for F in $CONFIG_FILES; do
 	eval "OUTFILE=\"\$`var_name $F`_OUTFILE\""
