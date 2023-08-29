@@ -31,13 +31,59 @@ struct dev ns8250 = {
 	ns8250_close,
 	ns8250_read,
 	ns8250_write,
-	ns8250_ioctl
+	ns8250_ioctl,
+
+	NULL
 };
+
+static const struct resource_request init_reqs[] = {
+	{
+		.type = RESOURCE_REQUEST_CHANNELS,
+		.nchannels = NS8250_PORT_COUNT
+	},
+	{
+		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
+		.channelsz = { .channel = 0, .size = 8 }
+	},
+	{
+		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
+		.channelsz = { .channel = 1, .size = 8 }
+	},
+	{
+		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
+		.channelsz = { .channel = 2, .size = 8 }
+	},
+	{
+		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
+		.channelsz = { .channel = 3, .size = 8 }
+	},
+	{
+		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
+		.channelsz = { .channel = 4, .size = 8 }
+	},
+	{
+		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
+		.channelsz = { .channel = 5, .size = 8 }
+	},
+	{
+		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
+		.channelsz = { .channel = 6, .size = 8 }
+	},
+	{
+		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
+		.channelsz = { .channel = 7, .size = 8 }
+	}
+};
+static const size_t init_reqs_sz = sizeof(init_reqs) / sizeof(struct resource_request);
 
 static int
 ns8250_attach(dev_t parent)
 {
 	dev_t port;
+	if (parent->driver->res_req(parent, init_reqs_sz, init_reqs)) {
+		return 1;
+	}
+
 	port = create_dev(&ns8250, 1, parent);
 	if (!port) {
 		return 1;

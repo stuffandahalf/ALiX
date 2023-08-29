@@ -80,6 +80,7 @@ create_dev(struct dev *driver, unsigned int nchannels, dev_t parent)
 	d->nchannels = nchannels;
 	d->config = NULL;
 	d->parent = parent;
+	d->driver = driver;
 
 	for (i = 0; i < drivers.length && !present; i++) {
 		present = drivers.list[i] == driver;
