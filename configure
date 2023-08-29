@@ -170,6 +170,33 @@ ldargs() {
 	printf "\n"
 }
 
+setup_target_env() {
+	_setup_target_env() {
+		eval "TARGET_EXTRA_DEPS=\"\$TARGET_EXTRA_DEPS \${${1}_EXTRA_DEPENDENCIES}\""
+		eval "TARGET_SOURCES=\"\$TARGET_SOURCES \${${1}_SOURCES}\""
+		eval "TARGET_CFLAGS=\"\$TARGET_CFLAGS \${${1}_CFLAGS}\""
+		eval "TARGET_LDFLAGS=\"\$TARGET_LDFLAGS \${${1}_LDFLAGS}\""
+		eval "TARGET_ARFLAGS=\"\$TARGET_ARFLAGS \${${1}_ARFLAGS}\""
+		eval "TARGET_LIBS=\"\$TARGET_LIBS \${${1}_LIBS}\""
+		eval "TARGET_OUTPUT_FORMAT=\${${1}_OUTPUT_FORMAT}"
+		eval "LIB_LOOKUP_DIRS=\"\$LIB_LOOKUP_DIRS \${${1}_LIB_LOOKUP_DIRS}\""
+	}
+	
+	TARGET_EXTRA_DEPS=
+	TARGET_SOURCES=
+	TARGET_CFLAGS=
+	TARGET_LDFLAGS=
+	TARGET_ARFLAGS=
+	TARGET_LIBS=
+	TARGET_OUTPUT_FORMAT=
+	LIB_LOOKUP_DIRS=
+	
+	_setup_target_env $1
+	for A in $INCLUDE_ARCH_DIRS; do
+		_setup_target_env "$1_$A"
+	done
+}
+
 emit_target_deps() {
 	for SOURCE in $@; do
 		emit "`src2obj $SOURCE`: $SOURCE\n"
@@ -469,6 +496,14 @@ fi
 touch "$DIR$OUT_MAKEFILE"
 BUILD_ARTIFACTS=
 
+for A in $INCLUDE_ARCH_DIRS; do
+	eval "TARGETS=\"\$TARGETS \$${A}_TARGETS\""
+	eval "STATIC_LIB_TARGETS=\"\$STATIC_LIB_TARGETS \$${A}_STATIC_LIB_TARGETS\""
+	eval "DYNAMIC_LIB_TARGETS=\"\$DYNAMIC_LIB_TARGETS \$${A}_DYNAMIC_LIB_TARGETS\""
+	eval "SUBDIRS=\"\$SUBDIRS \$${A}_SUBDIRS\""
+	eval "BUILD_DIRS=\"\$BUILD_DIRS \$${A}_BUILD_DIRS\""
+done
+
 # write output file
 emit ".POSIX:\n"
 emit "\n"
@@ -485,13 +520,7 @@ done
 for TARGET in $TARGETS; do
 	# evaluate target variables
 	TARGET_VAR=`var_name $TARGET`
-	eval "TARGET_EXTRA_DEPS=\${${TARGET_VAR}_EXTRA_DEPENDENCIES}"
-	eval "TARGET_SOURCES=\${${TARGET_VAR}_SOURCES}"
-	eval "TARGET_CFLAGS=\${${TARGET_VAR}_CFLAGS}"
-	eval "TARGET_LDFLAGS=\${${TARGET_VAR}_LDFLAGS}"
-	eval "TARGET_LIBS=\${${TARGET_VAR}_LIBS}"
-	eval "TARGET_OUTPUT_FORMAT=\${${TARGET_VAR}_OUTPUT_FORMAT}"
-	eval "LIB_LOOKUP_DIRS=\${${TARGET_VAR}_LIB_LOOKUP_DIRS}"
+	setup_target_env "$TARGET_VAR"
 	LIB_LOOKUP_DIRS="`target_paths $LIB_LOOKUP_DIRS`"
 	TARGET_ARTIFACTS="$TARGET_ARTIFACTS $TARGET"
 	if [ "$TARGET_OUTPUT_FORMAT" -a "$TARGET_OUTPUT_FORMAT" != "elf" ]; then
@@ -530,9 +559,7 @@ done
 for STATIC_LIB in $STATIC_LIB_TARGETS; do
 	# evaluate library variables
 	TARGET_VAR=`var_name "$STATIC_LIB"`
-	eval "TARGET_SOURCES=\${${TARGET_VAR}_SOURCES}"
-	eval "TARGET_CFLAGS=\${${TARGET_VAR}_CFLAGS}"
-	eval "TARGET_ARFLAGS=\${${TARGET_VAR}_ARFLAGS}"
+	setup_target_env "$TARGET_VAR"
 	OBJECTS="`src2obj $TARGET_SOURCES`"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
@@ -545,9 +572,7 @@ done
 for DYNAMIC_LIB in $DYNAMIC_LIB_TARGETS; do
 	# evaluate library variables
 	TARGET_VAR=`var_name "$DYNAMIC_LIB"`
-	eval "TARGET_SOURCES=\${${TARGET_VAR}_SOURCES}"
-	eval "TARGET_CFLAGS=\${${TARGET_VAR}_CFLAGS}"
-	eval "TARGET_LDFLAGS=\${${TARGET_VAR}_LDFLAGS}"
+	setup_target_env "$TARGET_VAR"
 	OBJECTS="`src2obj $TARGET_SOURCES`"
 	BUILD_ARTIFACTS="$BUILD_ARTIFACTS $OBJECTS"
 
