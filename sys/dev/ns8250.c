@@ -74,7 +74,7 @@ static const struct resource_request init_reqs[] = {
 		.channelsz = { .channel = 7, .size = 8 }
 	}
 };
-static const size_t init_reqs_sz = sizeof(init_reqs) / sizeof(struct resource_request);
+static const size_t init_reqs_sz = LEN(init_reqs);
 
 static int
 ns8250_attach(dev_t parent)
@@ -101,15 +101,16 @@ ns8250_attach(dev_t parent)
 static void
 ns8250_detach(dev_t device)
 {
-	NOT_IMPLEMENTED();
+	//NOT_IMPLEMENTED();
+	kfree(device->config);
 	destroy_dev(device);
 }
 
 static int
 ns8250_open(dev_t device, unsigned int channel, int flags)
 {
-	int i;
-	char byte;
+	int i, r;
+	uint8_t byte;
 	if (channel != 0) {
 		return 1;
 	}
@@ -122,7 +123,9 @@ ns8250_open(dev_t device, unsigned int channel, int flags)
 	/* initialize device */
 	// ((struct tty *)device->config)->baud = 9600;
 	byte = NS8250_LINE_CTRL_BITS_8 | NS8250_LINE_CTRL_PARITY_NONE | NS8250_LINE_CTRL_STOP_BITS_1;
-	DEV_PARENT_WRITE(device, NS8250_PORT_LINE_CTRL, &byte, 1);
+	r = DEV_PARENT_WRITE(device, NS8250_PORT_LINE_CTRL, &byte, 1);
+	kloglu(byte, 10);
+	klogc('\n');
 
 	return 0;
 }
@@ -130,7 +133,17 @@ ns8250_open(dev_t device, unsigned int channel, int flags)
 static int
 ns8250_close(dev_t device, unsigned int channel)
 {
-	NOT_IMPLEMENTED();
+	int i;
+
+	//NOT_IMPLEMENTED();
+	if (channel != 0) {
+		return 1;
+	}
+
+	for (i = 0; i < NS8250_PORT_COUNT; i++) {
+		DEV_PARENT_CLOSE(device, i);
+	}
+
 	return 0;
 }
 

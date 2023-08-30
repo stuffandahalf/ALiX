@@ -6,6 +6,7 @@
 
 typedef struct device *dev_t;
 
+#define RESOURCE_REQUEST_REGIONS 0
 #define RESOURCE_REQUEST_CHANNELS 1
 #define RESOURCE_REQUEST_CHANNEL_SIZE 2
 
@@ -43,6 +44,7 @@ dev_t create_dev(struct dev *driver, unsigned int nchannels, dev_t parent);
 void destroy_dev(dev_t device);
 
 #define DEV_PARENT_OPEN(dev, channel, flags) (dev)->parent->driver->open((dev)->parent, (channel), (flags))
+#define DEV_PARENT_CLOSE(dev, channel) (dev)->parent->driver->close((dev)->parent, (channel))
 #define DEV_PARENT_WRITE(dev, channel, buf, n) (dev)->parent->driver->write((dev)->parent, (channel), (buf), (n))
 #define DEV_PARENT_READ(dev, channel, buf, n) (dev)->parent->driver->read((dev)->parent, (channel), (buf), (n))
 #define DEV_PARENT_IOCTL(dev, channel) (dev)->parent->driver->ioctl((dev)->parent, (channel));

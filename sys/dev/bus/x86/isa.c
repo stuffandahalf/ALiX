@@ -8,6 +8,9 @@
 #include <alix/util.h>
 
 #include <alix/dev/ns8250.h>
+// TODO: LPT drivers
+#include <alix/dev/ata.h>
+
 
 static int isa_attach(dev_t parent);
 static void isa_detach(dev_t parent);
@@ -41,6 +44,15 @@ static const struct bios_data_area {
 	uint8_t kbd_state;
 } __attribute__((__packed__)) *bda = BDA_ADDR;
 
+uint16_t ata_ports[] = { 0x1f0, 0x170, 0x1e8, 0x168 };
+/*uint16_t ata_ports[2][] = {
+	{ 0x1f0, 0x3f6 },
+	{ 0x170, 0x376 },
+	{ 0x1e8, 0x3e6 },
+	{ 0x168, 0x366 }
+};*/
+size_t ata_ports_cnt = LEN(ata_ports);
+
 struct dev isa = {
 	"isa",
 
@@ -62,6 +74,9 @@ struct dev isa = {
 struct isa_config {
 	uint16_t base_port;
 	uint8_t *port_widths;
+
+	// LIST(uint16_t) base_ports;
+	// LIST(uint8_t *) port_widths;
 };
 
 #define TOTAL_PORTS (1 << 16)
@@ -73,7 +88,7 @@ static uint##sz##_t \
 in##nm(uint16_t port) { \
 	uint##sz##_t nm; \
 	__asm__ __volatile__ ( \
-		"in" #nm "%%dx, %" #reg "\n\t" \
+		"in" #nm " %%dx, %" #reg "\n\t" \
 		: "=a"(nm) \
 		: "d"(port) \
 	); \
@@ -88,7 +103,7 @@ in_fnc(32, l, %eax);
 static void \
 out##nm(uint16_t port, uint##sz##_t data) { \
 	__asm__ __volatile__ ( \
-		"out" #nm "%%dx, %" #reg "\n\t" \
+		"out" #nm " %" #reg ", %%dx\n\t" \
 		: \
 		: "d"(port), "a"(data) \
 	); \
@@ -125,7 +140,7 @@ isa_attach(dev_t parent)
 			config = kalloc(sizeof(struct isa_config));
 			if (!config) {
 				klogs("Failed to allocate config for isa bus\n");
-				kfree(bus);
+				destroy_dev(bus);
 				continue;
 			}
 			config->base_port = bda->com_ports[i];
@@ -133,7 +148,7 @@ isa_attach(dev_t parent)
 			bus->config = config;
 			if (ns8250.attach(bus)) {
 				kfree(config);
-				kfree(bus);
+				destroy_dev(bus);
 				continue;
 			}
 		}
@@ -148,7 +163,26 @@ isa_attach(dev_t parent)
 			klogc('\n');
 		}
 	}
-	// d = create_dev(&isa);
+
+	for (i = 0; i < ata_ports_cnt; i++) {
+		bus = create_dev(&isa, 0, parent);
+		if (!bus) {
+			continue;
+		}
+		bus->parent = NULL;
+		config = kalloc(sizeof(struct isa_config));
+		if (!config) {
+			destroy_dev(bus);
+			continue;
+		}
+		config->base_port = ata_ports[i];
+		config->port_widths = NULL;
+		bus->config = config;
+		if (ata.attach(bus)) {
+			kfree(config);
+			destroy_dev(bus);
+		}
+	}
 
 	return 0;
 }
@@ -176,8 +210,7 @@ isa_open(dev_t device, unsigned int channel, int flags)
 static int
 isa_close(dev_t device, unsigned int channel)
 {
-	// NOT_IMPLEMENTED();
-	unsigned long int port = ((struct isa_config *)device->config)->base_port + channel;
+	uint16_t port = ((struct isa_config *)device->config)->base_port + channel;
 	int i = port / PORT_WORDS;
 	int mask = port % PORT_WORDS;
 	mask = 1 << mask;
@@ -188,19 +221,75 @@ isa_close(dev_t device, unsigned int channel)
 	return 0;
 }
 
-
 static int
 isa_read(dev_t device, unsigned int channel, void *buffer, size_t n)
 {
-	NOT_IMPLEMENTED();
-	return 0;
+	struct isa_config *cfg = device->config;
+	uint16_t port = cfg->base_port + channel;
+	uint8_t port_bytes = cfg->port_widths[channel] / 8;
+
+	int i = port / PORT_WORDS;
+	int mask = 1 << (port % PORT_WORDS);
+
+	size_t j;
+
+	if (!(open_ports[i] & mask)) {
+		return -1;
+	}
+
+	for (j = 0; j * port_bytes < n; j++) {
+		switch (cfg->port_widths[channel]) {
+		case 8:
+			((uint8_t *)buffer)[j] = inb(port);
+			break;
+		case 16:
+			((uint16_t *)buffer)[j] = inw(port);
+			break;
+		case 32:
+			((uint32_t *)buffer)[j] = inl(port);
+			break;
+		default:
+			return -1;
+		}
+	};
+
+	return j * port_bytes;
 }
 
 static int
 isa_write(dev_t device, unsigned int channel, void *buffer, size_t n)
 {
-	NOT_IMPLEMENTED();
-	return 0;
+	//NOT_IMPLEMENTED();
+	struct isa_config *cfg = device->config;
+	uint16_t port = cfg->base_port + channel;
+	uint8_t port_bytes = cfg->port_widths[channel] / 8;
+
+	int i = port / PORT_WORDS;
+	int mask = 1 << (port % PORT_WORDS);
+
+	size_t j;
+
+	if (!(open_ports[i] & mask)) {
+		return -1;
+	}
+
+	for (j = 0; j * port_bytes < n; j++) {
+		switch (cfg->port_widths[channel]) {
+		case 8:
+			outb(port, ((uint8_t *)buffer)[j]);
+			break;
+		case 16:
+			outw(port, ((uint16_t *)buffer)[j]);
+			break;
+		case 32:
+			outl(port, ((uint32_t *)buffer)[j]);
+			break;
+		default:
+			return -1;
+		}
+	}
+
+	return j * port_bytes;
 }
 
 static void
@@ -216,6 +305,8 @@ isa_resource_request(dev_t device, size_t nrequests, const struct resource_reque
 	struct isa_config *cfg = (struct isa_config *)device->config;
 	for (i = 0; i < nrequests; i++) {
 		switch (requests[i].type) {
+		// case RESOURCE_REQUEST_REGIONS:
+		// 	break;
 		case RESOURCE_REQUEST_CHANNELS:
 			cfg->port_widths = krealloc(cfg->port_widths, requests[i].nchannels * sizeof(uint8_t));
 			if (!cfg->port_widths) {
