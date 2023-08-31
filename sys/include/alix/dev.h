@@ -10,6 +10,9 @@ typedef struct device *dev_t;
 #define RESOURCE_REQUEST_CHANNELS 1
 #define RESOURCE_REQUEST_CHANNEL_SIZE 2
 
+#define RESOURCE_REQUEST_CHANNEL_SIZE_R (1 << 0)
+#define RESOURCE_REQUEST_CHANNEL_SIZE_W (1 << 1)
+
 struct resource_request {
 	int type;
 	union {
@@ -17,6 +20,7 @@ struct resource_request {
 		struct {
 			unsigned int channel;
 			unsigned int size;
+			unsigned int mode;
 		} channelsz;
 	};
 };

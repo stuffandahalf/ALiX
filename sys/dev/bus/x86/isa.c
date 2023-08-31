@@ -44,13 +44,13 @@ static const struct bios_data_area {
 	uint8_t kbd_state;
 } __attribute__((__packed__)) *bda = BDA_ADDR;
 
-uint16_t ata_ports[] = { 0x1f0, 0x170, 0x1e8, 0x168 };
-/*uint16_t ata_ports[2][] = {
+//uint16_t ata_ports[] = { 0x1f0, 0x170, 0x1e8, 0x168 };
+uint16_t ata_ports[][2] = {
 	{ 0x1f0, 0x3f6 },
 	{ 0x170, 0x376 },
 	{ 0x1e8, 0x3e6 },
 	{ 0x168, 0x366 }
-};*/
+};
 size_t ata_ports_cnt = LEN(ata_ports);
 
 struct dev isa = {
@@ -70,13 +70,19 @@ struct dev isa = {
 	isa_resource_request,
 };
 
-
-struct isa_config {
+struct isa_port_width {
+	uint8_t r;
+	uint8_t w;
+};
+struct isa_port_config {
 	uint16_t base_port;
-	uint8_t *port_widths;
-
-	// LIST(uint16_t) base_ports;
-	// LIST(uint8_t *) port_widths;
+	LIST(struct isa_port_width) port_widths;
+};
+struct isa_config {
+	//uint16_t base_port;
+	//uint8_t *port_widths;
+	LIST(struct isa_port_config) regions;
+	size_t configured_regions;
 };
 
 #define TOTAL_PORTS (1 << 16)
@@ -113,12 +119,23 @@ out_fnc(8, b, %al);
 out_fnc(16, w, %ax);
 out_fnc(32, l, %eax);
 
+static void
+free_isa_config(struct isa_config *cfg)
+{
+	size_t i;
+	for (i = 0; i < cfg->regions.length; i++) {
+		LIST_FREE(&cfg->regions.list[i].port_widths);
+	}
+	LIST_FREE(&cfg->regions);
+}
+
 static int
 isa_attach(dev_t parent)
 {
 	int i;
 	dev_t bus, dev;
 	struct isa_config *config;
+	struct isa_port_config port_config;
 
 	for (i = 0; i < BDA_COMPORTS_SZ; i++) {
 		if (bda->com_ports[i]) {
@@ -136,18 +153,25 @@ isa_attach(dev_t parent)
 				klogc('\n');
 				continue;
 			}
-			bus->parent = NULL;
+			//config = kalloc(sizeof(struct isa_config));
 			config = kalloc(sizeof(struct isa_config));
 			if (!config) {
 				klogs("Failed to allocate config for isa bus\n");
 				destroy_dev(bus);
 				continue;
 			}
-			config->base_port = bda->com_ports[i];
-			config->port_widths = NULL;
+			//config->base_port = bda->com_ports[i];
+			//config->port_widths = NULL;
+			LIST_INITIALIZE(&config->regions);
+			config->configured_regions = 0;
+
+			port_config.base_port = bda->com_ports[i];
+			LIST_INITIALIZE(&port_config.port_widths);
+			LIST_APPEND(struct isa_port_config, &config->regions, port_config);
+
 			bus->config = config;
 			if (ns8250.attach(bus)) {
-				kfree(config);
+				free_isa_config(config);
 				destroy_dev(bus);
 				continue;
 			}
@@ -169,17 +193,27 @@ isa_attach(dev_t parent)
 		if (!bus) {
 			continue;
 		}
-		bus->parent = NULL;
 		config = kalloc(sizeof(struct isa_config));
 		if (!config) {
 			destroy_dev(bus);
 			continue;
 		}
-		config->base_port = ata_ports[i];
-		config->port_widths = NULL;
+		//config->base_port = ata_ports[i];
+		//config->port_widths = NULL;
+		LIST_INITIALIZE(&config->regions);
+		config->configured_regions = 0;
+
+		port_config.base_port = ata_ports[i][0];
+		LIST_INITIALIZE(&port_config.port_widths);
+		LIST_APPEND(struct isa_port_config, &config->regions, port_config);
+
+		port_config.base_port = ata_ports[i][1];
+		LIST_INITIALIZE(&port_config.port_widths);
+		LIST_APPEND(struct isa_port_config, &config->regions, port_config);
+
 		bus->config = config;
 		if (ata.attach(bus)) {
-			kfree(config);
+			free_isa_config(config);
 			destroy_dev(bus);
 		}
 	}
@@ -193,10 +227,26 @@ isa_detach(dev_t parent)
 	NOT_IMPLEMENTED();
 }
 
+struct isa_port_config *
+port_lookup(struct isa_config *cfg, unsigned int *channel)
+{
+	size_t i, n = 0;
+	for (i = 0; i < cfg->regions.length; i++) {
+		if (0 <= *channel && *channel < cfg->regions.list[i].port_widths.length) {
+			return &cfg->regions.list[i];
+		}
+		*channel -= cfg->regions.list[i].port_widths.length;
+	}
+
+	return NULL;
+}
+
 static int
 isa_open(dev_t device, unsigned int channel, int flags)
 {
-	unsigned long int port = ((struct isa_config *)device->config)->base_port + channel;
+	struct isa_config *cfg = (struct isa_config *)device->config;
+	struct isa_port_config *port_cfg = port_lookup(cfg, &channel);
+	uint16_t port = port_cfg->base_port + channel;
 	int i = port / PORT_WORDS;
 	int mask = port % PORT_WORDS;
 	mask = 1 << mask;
@@ -210,7 +260,9 @@ isa_open(dev_t device, unsigned int channel, int flags)
 static int
 isa_close(dev_t device, unsigned int channel)
 {
-	uint16_t port = ((struct isa_config *)device->config)->base_port + channel;
+	struct isa_config *cfg = (struct isa_config *)device->config;
+	struct isa_port_config *port_cfg = port_lookup(cfg, &channel);
+	uint16_t port = port_cfg->base_port + channel;
 	int i = port / PORT_WORDS;
 	int mask = port % PORT_WORDS;
 	mask = 1 << mask;
@@ -225,8 +277,9 @@ static int
 isa_read(dev_t device, unsigned int channel, void *buffer, size_t n)
 {
 	struct isa_config *cfg = device->config;
-	uint16_t port = cfg->base_port + channel;
-	uint8_t port_bytes = cfg->port_widths[channel] / 8;
+	struct isa_port_config *port_cfg = port_lookup(cfg, &channel);
+	uint16_t port = port_cfg->base_port + channel;
+	uint8_t port_bytes = port_cfg->port_widths.list[channel].r / 8;
 
 	int i = port / PORT_WORDS;
 	int mask = 1 << (port % PORT_WORDS);
@@ -238,7 +291,7 @@ isa_read(dev_t device, unsigned int channel, void *buffer, size_t n)
 	}
 
 	for (j = 0; j * port_bytes < n; j++) {
-		switch (cfg->port_widths[channel]) {
+		switch (port_cfg->port_widths.list[channel].r) {
 		case 8:
 			((uint8_t *)buffer)[j] = inb(port);
 			break;
@@ -259,10 +312,10 @@ isa_read(dev_t device, unsigned int channel, void *buffer, size_t n)
 static int
 isa_write(dev_t device, unsigned int channel, void *buffer, size_t n)
 {
-	//NOT_IMPLEMENTED();
 	struct isa_config *cfg = device->config;
-	uint16_t port = cfg->base_port + channel;
-	uint8_t port_bytes = cfg->port_widths[channel] / 8;
+	struct isa_port_config *port_cfg = port_lookup(cfg, &channel);
+	uint16_t port = port_cfg->base_port + channel;
+	uint8_t port_bytes = port_cfg->port_widths.list[channel].w / 8;
 
 	int i = port / PORT_WORDS;
 	int mask = 1 << (port % PORT_WORDS);
@@ -274,7 +327,7 @@ isa_write(dev_t device, unsigned int channel, void *buffer, size_t n)
 	}
 
 	for (j = 0; j * port_bytes < n; j++) {
-		switch (cfg->port_widths[channel]) {
+		switch (port_cfg->port_widths.list[channel].w) {
 		case 8:
 			outb(port, ((uint8_t *)buffer)[j]);
 			break;
@@ -303,22 +356,32 @@ isa_resource_request(dev_t device, size_t nrequests, const struct resource_reque
 {
 	size_t i, j;
 	struct isa_config *cfg = (struct isa_config *)device->config;
+	struct isa_port_config *port_cfg = NULL;
+	struct isa_port_width port_width = { 0, 0 };
+	unsigned int channel;
 	for (i = 0; i < nrequests; i++) {
 		switch (requests[i].type) {
-		// case RESOURCE_REQUEST_REGIONS:
+		//case RESOURCE_REQUEST_REGIONS:
+
 		// 	break;
 		case RESOURCE_REQUEST_CHANNELS:
-			cfg->port_widths = krealloc(cfg->port_widths, requests[i].nchannels * sizeof(uint8_t));
-			if (!cfg->port_widths) {
+			if (cfg->configured_regions >= cfg->regions.length) {
 				return 1;
 			}
+			port_cfg = &cfg->regions.list[cfg->configured_regions++];
+			//cfg->port_widths = krealloc(cfg->port_widths, requests[i].nchannels * sizeof(uint8_t));
+			/*if (!cfg->port_widths) {
+				return 1;
+			}*/
 			for (j = 0; j < requests[i].nchannels; j++) {
-				cfg->port_widths[j] = 0;
+				LIST_APPEND(struct isa_port_width, &port_cfg->port_widths, port_width);
 			}
-			device->nchannels = requests[i].nchannels;
+			device->nchannels += requests[i].nchannels;
 			break;
 		case RESOURCE_REQUEST_CHANNEL_SIZE:
-			if (!cfg->port_widths) {
+			channel = requests[i].channelsz.channel;
+			port_cfg = port_lookup(cfg, &channel);
+			if (!port_cfg->port_widths.length || port_cfg->port_widths.length <= channel) {
 				return 1;
 			}
 			if (requests[i].channelsz.size != 32 && requests[i].channelsz.size != 16 && requests[i].channelsz.size != 8) {
@@ -327,7 +390,13 @@ isa_resource_request(dev_t device, size_t nrequests, const struct resource_reque
 			if (requests[i].channelsz.channel >= device->nchannels) {
 				return 1;
 			}
-			cfg->port_widths[requests[i].channelsz.channel] = requests[i].channelsz.size;
+
+			if (requests[i].channelsz.mode & RESOURCE_REQUEST_CHANNEL_SIZE_R) {
+				port_cfg->port_widths.list[channel].r = requests[i].channelsz.size;
+			}
+			if (requests[i].channelsz.mode & RESOURCE_REQUEST_CHANNEL_SIZE_W) {
+				port_cfg->port_widths.list[channel].w = requests[i].channelsz.size;
+			}
 			break;
 		default:
 			return 1;

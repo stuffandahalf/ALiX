@@ -43,35 +43,67 @@ static const struct resource_request init_reqs[] = {
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 0, .size = 8 }
+		.channelsz = {
+			.channel = 0,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 1, .size = 8 }
+		.channelsz = {
+			.channel = 1,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 2, .size = 8 }
+		.channelsz = {
+			.channel = 2,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 3, .size = 8 }
+		.channelsz = {
+			.channel = 3,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 4, .size = 8 }
+		.channelsz = {
+			.channel = 4,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 5, .size = 8 }
+		.channelsz = {
+			.channel = 5,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 6, .size = 8 }
+		.channelsz = {
+			.channel = 6,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 7, .size = 8 }
+		.channelsz = {
+			.channel = 7,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	}
 };
 static const size_t init_reqs_sz = LEN(init_reqs);

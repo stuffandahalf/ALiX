@@ -24,6 +24,15 @@
 	}
 
 #define LIST_INIT { NULL, 0, 0 }
+#define LIST_INITIALIZE(l) { \
+	(l)->list = NULL; \
+	(l)->size = 0; \
+	(l)->length = 0; \
+}
+#define LIST_FREE(l) { \
+	kfree((l)->list); \
+	LIST_INITIALIZE((l)); \
+}
 
 /* void LIST_INSERT(TYPE, LIST(TYPE) *, int, TYPE *) */
 #define LIST_INSERT(T, l, i, e) { \

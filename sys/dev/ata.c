@@ -41,36 +41,72 @@ static const struct resource_request init_reqs[] = {
 		.nchannels = ATA_IO_PORT_COUNT
 	},
 	{
-		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 0, .size = 8 }
+		.type = RESOURCE_REQUEST_CHANNELS,
+		.nchannels = ATA_CTRL_PORT_COUNT
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 1, .size = 8 }
+		.channelsz = {
+			.channel = ATA_PORT_DATA,
+			.size = 16,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 2, .size = 8 }
+		.channelsz = {
+			.channel = ATA_PORT_ERROR,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 3, .size = 8 }
+		.channelsz = {
+			.channel = ATA_PORT_SEC_COUNT,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 4, .size = 8 }
+		.channelsz = {
+			.channel = ATA_PORT_SEC_NUM,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 5, .size = 8 }
+		.channelsz = {
+			.channel = ATA_PORT_CYL_LO,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 6, .size = 8 }
+		.channelsz = {
+			.channel = ATA_PORT_CYL_HI,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	},
 	{
 		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
-		.channelsz = { .channel = 7, .size = 8 }
+		.channelsz = {
+			.channel = ATA_PORT_DRV_HEAD,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
+	},
+	{
+		.type = RESOURCE_REQUEST_CHANNEL_SIZE,
+		.channelsz = {
+			.channel = ATA_PORT_STATUS,
+			.size = 8,
+			.mode = RESOURCE_REQUEST_CHANNEL_SIZE_R | RESOURCE_REQUEST_CHANNEL_SIZE_W
+		}
 	}
 };
 static const size_t init_reqs_sz = LEN(init_reqs);
@@ -120,4 +156,13 @@ static void
 ata_ioctl(dev_t device)
 {
 	NOT_IMPLEMENTED();
+}
+
+
+/* drive commands */
+
+static void
+ata_identify(dev_t device)
+{
+
 }
