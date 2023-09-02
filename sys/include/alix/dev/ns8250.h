@@ -28,6 +28,15 @@
 #define NS8250_LINE_CTRL_PARITY_MARK (5 << 3)
 #define NS8250_LINE_CTRL_PARITY_SPACE (7 << 3)
 
+#define NS8250_LINE_STATUS_DR (1 << 0)
+#define NS8250_LINE_STATUS_OE (1 << 1)
+#define NS8250_LINE_STATUS_PE (1 << 2)
+#define NS8250_LINE_STATUS_FE (1 << 3)
+#define NS8250_LINE_STATUS_BI (1 << 4)
+#define NS8250_LINE_STATUS_THRE (1 << 5)
+#define NS8250_LINE_STATUS_TEMPT (1 << 6)
+#define NS8250_LINE_STATUS_IE (1 << 7)
+
 extern struct dev ns8250;
 
 #endif /* ALIX_DEV_NS8250_H */

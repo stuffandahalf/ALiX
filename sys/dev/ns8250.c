@@ -112,6 +112,7 @@ static int
 ns8250_attach(dev_t parent)
 {
 	dev_t port;
+	char c;
 	if (parent->driver->res_req(parent, init_reqs_sz, init_reqs)) {
 		return 1;
 	}
@@ -133,9 +134,15 @@ ns8250_attach(dev_t parent)
 static void
 ns8250_detach(dev_t device)
 {
-	//NOT_IMPLEMENTED();
 	kfree(device->config);
 	destroy_dev(device);
+}
+
+
+static inline int
+bwrite(dev_t device, unsigned int channel, uint8_t byte)
+{
+	return DEV_PARENT_WRITE(device, channel, &byte, sizeof(byte));
 }
 
 static int
@@ -154,10 +161,23 @@ ns8250_open(dev_t device, unsigned int channel, int flags)
 
 	/* initialize device */
 	// ((struct tty *)device->config)->baud = 9600;
+
+	/* disable interrupts */
+	if (!bwrite(device, NS8250_PORT_INT_ENABLE, 0)) return 1;
+	
+	/* enable DLAB */
+	if (!bwrite(device, NS8250_PORT_LINE_CTRL, 0x80)) return 1;
+
+	/* set divisor to 3, 38400 baud */
+	if (!bwrite(device, NS8250_PORT_DIV_LO, 0x03)) return 1;
+	if (!bwrite(device, NS8250_PORT_DIV_HI, 0x00)) return 1;
+
+	/* 8 bytes, no parity, 1 stop bit */
 	byte = NS8250_LINE_CTRL_BITS_8 | NS8250_LINE_CTRL_PARITY_NONE | NS8250_LINE_CTRL_STOP_BITS_1;
-	r = DEV_PARENT_WRITE(device, NS8250_PORT_LINE_CTRL, &byte, 1);
-	kloglu(byte, 10);
-	klogc('\n');
+	if (!bwrite(device, NS8250_PORT_LINE_CTRL, byte)) return 1;
+
+	/* enable interrupts */
+	// if (!bwrite(device, NS8250_PORT_INT_ID, 0xc7)) return 1;
 
 	return 0;
 }
@@ -167,7 +187,6 @@ ns8250_close(dev_t device, unsigned int channel)
 {
 	int i;
 
-	//NOT_IMPLEMENTED();
 	if (channel != 0) {
 		return 1;
 	}
@@ -182,15 +201,27 @@ ns8250_close(dev_t device, unsigned int channel)
 static int
 ns8250_read(dev_t device, unsigned int channel, void *buf, size_t n)
 {
-	NOT_IMPLEMENTED();
-	return 0;
+	uint8_t byte;
+	int i, ready = 0;
+
+	for (i = 0; i < n; i++) {
+		ready = 0;
+		do {
+			DEV_PARENT_READ(device, NS8250_PORT_LINE_STATUS, &byte, 1);
+			ready = byte & NS8250_LINE_STATUS_DR;
+		} while (!ready);
+		DEV_PARENT_READ(device, NS8250_PORT_DATA, &((uint8_t *)buf)[i], 1);
+	}
+
+	//return 0;
+	return i;
 }
 
+/* TODO: implement tty logic */
 static int
 ns8250_write(dev_t device, unsigned int channel, void *buf, size_t n)
 {
-	NOT_IMPLEMENTED();
-	return 0;
+	return DEV_PARENT_WRITE(device, 0, buf, n);
 }
 
 static void

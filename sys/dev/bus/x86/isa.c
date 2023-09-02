@@ -247,9 +247,10 @@ isa_open(dev_t device, unsigned int channel, int flags)
 	struct isa_config *cfg = (struct isa_config *)device->config;
 	struct isa_port_config *port_cfg = port_lookup(cfg, &channel);
 	uint16_t port = port_cfg->base_port + channel;
-	int i = port / PORT_WORDS;
-	int mask = port % PORT_WORDS;
-	mask = 1 << mask;
+
+	int i = port / 16;
+	int mask = 1 << (port % 16);
+
 	if (open_ports[i] & mask) {
 		return 1;
 	}
@@ -263,9 +264,10 @@ isa_close(dev_t device, unsigned int channel)
 	struct isa_config *cfg = (struct isa_config *)device->config;
 	struct isa_port_config *port_cfg = port_lookup(cfg, &channel);
 	uint16_t port = port_cfg->base_port + channel;
-	int i = port / PORT_WORDS;
-	int mask = port % PORT_WORDS;
-	mask = 1 << mask;
+
+	int i = port / 16;
+	int mask = 1 << (port % 16);
+
 	if (!(open_ports[i] & mask)) {
 		return 1;
 	}
@@ -281,8 +283,8 @@ isa_read(dev_t device, unsigned int channel, void *buffer, size_t n)
 	uint16_t port = port_cfg->base_port + channel;
 	uint8_t port_bytes = port_cfg->port_widths.list[channel].r / 8;
 
-	int i = port / PORT_WORDS;
-	int mask = 1 << (port % PORT_WORDS);
+	int i = port / 16;
+	int mask = 1 << (port % 16);
 
 	size_t j;
 
@@ -317,8 +319,10 @@ isa_write(dev_t device, unsigned int channel, void *buffer, size_t n)
 	uint16_t port = port_cfg->base_port + channel;
 	uint8_t port_bytes = port_cfg->port_widths.list[channel].w / 8;
 
-	int i = port / PORT_WORDS;
-	int mask = 1 << (port % PORT_WORDS);
+	// int i = port / PORT_WORDS;
+	// int mask = 1 << (port % PORT_WORDS);
+	int i = port / 16;
+	int mask = 1 << (port % 16);
 
 	size_t j;
 
