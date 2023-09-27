@@ -20,7 +20,7 @@ static int isa_close(dev_t device, unsigned int channel);
 static int isa_read(dev_t device, unsigned int channel, void *buffer, size_t n);
 static int isa_write(dev_t device, unsigned int channel, void *buffer, size_t n);
 static void isa_ioctl(dev_t device);
-static int isa_resource_request(dev_t device, size_t nrequests, const struct resource_request *requests);
+static int isa_res_req(dev_t device, size_t nrequests, const struct resource_request *requests);
 
 #define BDA_ADDR ((void *)0x0400)
 #define BDA_COMPORTS_SZ 4
@@ -53,22 +53,25 @@ uint16_t ata_ports[][2] = {
 };
 size_t ata_ports_cnt = LEN(ata_ports);
 
-struct dev isa = {
-	"isa",
+// struct dev isa = {
+// 	"isa",
 
-	LIST_INIT,
+// 	LIST_INIT,
 
-	isa_attach,
-	isa_detach,
+// 	isa_attach,
+// 	isa_detach,
 
-	isa_open,
-	isa_close,
-	isa_read,
-	isa_write,
-	isa_ioctl,
+// 	isa_open,
+// 	isa_close,
+// 	isa_read,
+// 	isa_write,
+// 	isa_ioctl,
 
-	isa_resource_request,
-};
+// 	isa_res_req,
+// };
+
+#define ISA_FEATURES DEV_FALL
+struct dev isa = DEV_INIT(isa, ISA_FEATURES);
 
 struct isa_port_width {
 	uint8_t r;
@@ -356,7 +359,7 @@ isa_ioctl(dev_t device)
 }
 
 static int
-isa_resource_request(dev_t device, size_t nrequests, const struct resource_request *requests)
+isa_res_req(dev_t device, size_t nrequests, const struct resource_request *requests)
 {
 	size_t i, j;
 	struct isa_config *cfg = (struct isa_config *)device->config;
