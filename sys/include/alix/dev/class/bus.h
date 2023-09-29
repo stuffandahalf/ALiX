@@ -1,0 +1,6 @@
+#ifndef ALIX_DEV_CLASS_BUS_H
+#define ALIX_DEV_CLASS_BUS_H 1
+
+#define BUS_IOCTL_CHANNEL_SZ 1
+
+#endif /* ALIX_DEV_CLASS_BUS_H */

@@ -16,7 +16,7 @@ static int ata_open(dev_t device, unsigned int channel, int flags);
 static int ata_close(dev_t device, unsigned int channel);
 static int ata_read(dev_t device, unsigned int channel, void *buf, size_t n);
 static int ata_write(dev_t device, unsigned int channel, void *buf, size_t n);
-static void ata_ioctl(dev_t device);
+static int ata_ioctl(dev_t device, unsigned long int request, ...);
 
 struct dev ata = {
 	"ata",
@@ -30,11 +30,10 @@ struct dev ata = {
 	ata_close,
 	ata_read,
 	ata_write,
-	ata_ioctl,
-
-	NULL
+	ata_ioctl
 };
 
+#if 0
 static const struct resource_request init_reqs[] = {
 	{
 		.type = RESOURCE_REQUEST_CHANNELS,
@@ -110,6 +109,7 @@ static const struct resource_request init_reqs[] = {
 	}
 };
 static const size_t init_reqs_sz = LEN(init_reqs);
+#endif
 
 static int
 ata_attach(dev_t parent)
@@ -152,10 +152,11 @@ ata_write(dev_t device, unsigned int channel, void *buf, size_t n)
 	return 0;
 }
 
-static void
-ata_ioctl(dev_t device)
+static int
+ata_ioctl(dev_t device, unsigned long int request, ...)
 {
 	NOT_IMPLEMENTED();
+	return 0;
 }
 
 

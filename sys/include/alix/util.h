@@ -5,13 +5,13 @@
 
 #define LOC() klogs(__FILE__ ":"); kloglu(__LINE__, 10);
 
-#ifndef NDEBUG
+// #ifndef NDEBUG
 #define NOT_IMPLEMENTED() \
 	LOC(); \
 	klogs(" NOT YET IMPLEMENTED\n");
-#else
-#define NOT_IMPLEMENTED()
-#endif
+// #else
+// #define NOT_IMPLEMENTED()
+// #endif
 
 #define PANIC() LOC(); klogs("PANIC\n"); _klog_flush(); while (1);
 

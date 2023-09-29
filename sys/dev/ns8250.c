@@ -7,6 +7,7 @@
 #include <alix/mem.h>
 #include <alix/util.h>
 
+#include <alix/dev/class/bus.h>
 #include <alix/dev/class/tty.h>
 #include <alix/dev/ns8250.h>
 
@@ -17,7 +18,7 @@ static int ns8250_open(dev_t device, unsigned int channel, int flags);
 static int ns8250_close(dev_t device, unsigned int channel);
 static int ns8250_read(dev_t device, unsigned int channel, void *buf, size_t n);
 static int ns8250_write(dev_t device, unsigned int channel, void *buf, size_t n);
-static void ns8250_ioctl(dev_t device);
+static int ns8250_ioctl(dev_t device, unsigned long int request, ...);
 
 struct dev ns8250 = {
 	"ttyNS",
@@ -31,11 +32,10 @@ struct dev ns8250 = {
 	ns8250_close,
 	ns8250_read,
 	ns8250_write,
-	ns8250_ioctl,
-
-	NULL
+	ns8250_ioctl
 };
 
+#if 0
 static const struct resource_request init_reqs[] = {
 	{
 		.type = RESOURCE_REQUEST_CHANNELS,
@@ -107,15 +107,19 @@ static const struct resource_request init_reqs[] = {
 	}
 };
 static const size_t init_reqs_sz = LEN(init_reqs);
+#endif
+
+static const uint8_t ns8250_port_sizes[NS8250_PORT_COUNT] = { 8, 8, 8, 8, 8, 8, 8 };
 
 static int
 ns8250_attach(dev_t parent)
 {
 	dev_t port;
 	char c;
-	if (parent->driver->res_req(parent, init_reqs_sz, init_reqs)) {
-		return 1;
-	}
+	int i;
+	// if (parent->driver->res_req(parent, init_reqs_sz, init_reqs)) {
+	// 	return 1;
+	// }
 
 	port = create_dev(&ns8250, 1, parent);
 	if (!port) {
@@ -127,6 +131,9 @@ ns8250_attach(dev_t parent)
 		destroy_dev(port);
 		return 1;
 	}
+	// for (i = 0; i < NS8250_PORT_COUNT; i++) {
+	// 	DEV_PARENT_IOCTL(port, BUS_IOCTL_CHANNEL_SZ, 8);
+	// }
 
 	return 0;
 }
@@ -224,8 +231,9 @@ ns8250_write(dev_t device, unsigned int channel, void *buf, size_t n)
 	return DEV_PARENT_WRITE(device, 0, buf, n);
 }
 
-static void
-ns8250_ioctl(dev_t device)
+static int
+ns8250_ioctl(dev_t device, unsigned long int request, ...)
 {
 	NOT_IMPLEMENTED();
+	return 0;
 }
