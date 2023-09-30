@@ -280,7 +280,7 @@ isa_open(dev_t device, unsigned int channel, int flags)
 {
 	struct isa_config *cfg = (struct isa_config *)device->config;
 	int i = channel / 8;
-	int mask = channel % 8;
+	int mask = 1 << (channel % 8);
 
 	if (cfg->open[i] & mask) {
 		return 1;
@@ -293,93 +293,85 @@ static int
 isa_close(dev_t device, unsigned int channel)
 {
 	struct isa_config *cfg = (struct isa_config *)device->config;
-	// struct isa_port_config *port_cfg = port_lookup(cfg, &channel);
-	// uint16_t port = port_cfg->base_port + channel;
+	int i = channel / 8;
+	int mask = 1 << (channel % 8);
+	if (!(cfg->open[i] & mask)) {
+		return 1;
+	}
 
-	// int i = port / 16;
-	// int mask = 1 << (port % 16);
-
-	// if (!(open_ports[i] & mask)) {
-	// 	return 1;
-	// }
-	// open_ports[i] &= ~mask;
+	cfg->open[i] &= ~mask;
 	return 0;
 }
 
 static int
 isa_read(dev_t device, unsigned int channel, void *buffer, size_t n)
 {
-	// struct isa_config *cfg = device->config;
-	// struct isa_port_config *port_cfg = port_lookup(cfg, &channel);
-	// uint16_t port = port_cfg->base_port + channel;
-	// uint8_t port_bytes = port_cfg->port_widths.list[channel].r / 8;
 
-	// int i = port / 16;
-	// int mask = 1 << (port % 16);
+	struct isa_config *cfg = device->config;
 
-	// size_t j;
+	uint16_t port = cfg->ports[channel].port;
+	uint8_t portsz = cfg->ports[channel].read_sz / 8;
 
-	// if (!(open_ports[i] & mask)) {
-	// 	return -1;
-	// }
+	int i = channel / 8;
+	int mask = 1 << (channel % 8);
+	size_t j;
 
-	// for (j = 0; j * port_bytes < n; j++) {
-	// 	switch (port_cfg->port_widths.list[channel].r) {
-	// 	case 8:
-	// 		((uint8_t *)buffer)[j] = inb(port);
-	// 		break;
-	// 	case 16:
-	// 		((uint16_t *)buffer)[j] = inw(port);
-	// 		break;
-	// 	case 32:
-	// 		((uint32_t *)buffer)[j] = inl(port);
-	// 		break;
-	// 	default:
-	// 		return -1;
-	// 	}
-	// };
+	if (!(cfg->open[i] & mask)) {
+		return -1;
+	}
 
-	// return j * port_bytes;
-	return 0;
+	for (j = 0; j * portsz < n; j++) {
+		switch (portsz) {
+		case 1:
+			((uint8_t *)buffer)[j] = inb(port);
+			break;
+		case 2:
+			((uint16_t *)buffer)[j] = inw(port);
+			break;
+		case 4:
+			((uint32_t *)buffer)[j] = inl(port);
+			break;
+		default:
+			return -1;
+		}
+	}
+
+	return j * portsz;
 }
 
 static int
 isa_write(dev_t device, unsigned int channel, void *buffer, size_t n)
 {
-	// struct isa_config *cfg = device->config;
-	// struct isa_port_config *port_cfg = port_lookup(cfg, &channel);
-	// uint16_t port = port_cfg->base_port + channel;
-	// uint8_t port_bytes = port_cfg->port_widths.list[channel].w / 8;
+	struct isa_config *cfg = device->config;
 
-	// // int i = port / PORT_WORDS;
-	// // int mask = 1 << (port % PORT_WORDS);
-	// int i = port / 16;
-	// int mask = 1 << (port % 16);
+	uint16_t port = cfg->ports[channel].port;
+	uint8_t portsz = cfg->ports[channel].write_sz / 8;
 
-	// size_t j;
+	int i = channel / 8;
+	int mask = 1 << (channel % 8);
+	size_t j;
 
-	// if (!(open_ports[i] & mask)) {
-	// 	return -1;
-	// }
+	if (!(cfg->open[i] & mask)) {
+		return -1;
+	}
 
-	// for (j = 0; j * port_bytes < n; j++) {
-	// 	switch (port_cfg->port_widths.list[channel].w) {
-	// 	case 8:
-	// 		outb(port, ((uint8_t *)buffer)[j]);
-	// 		break;
-	// 	case 16:
-	// 		outw(port, ((uint16_t *)buffer)[j]);
-	// 		break;
-	// 	case 32:
-	// 		outl(port, ((uint32_t *)buffer)[j]);
-	// 		break;
-	// 	default:
-	// 		return -1;
-	// 	}
-	// }
+	for (j = 0; j * portsz < n; j++) {
+		switch (portsz) {
+		case 1:
+			outb(port, ((uint8_t *)buffer)[j]);
+			break;
+		case 2:
+			outw(port, ((uint16_t *)buffer)[j]);
+			break;
+		case 4:
+			outl(port, ((uint32_t *)buffer)[j]);
+			break;
+		default:
+			return -1;
+		}
+	}
 
-	// return j * port_bytes;
-	return 0;
+	return j * portsz;
 }
 
 static int

@@ -109,7 +109,7 @@ static const struct resource_request init_reqs[] = {
 static const size_t init_reqs_sz = LEN(init_reqs);
 #endif
 
-static const uint8_t ns8250_port_sizes[NS8250_PORT_COUNT] = { 8, 8, 8, 8, 8, 8, 8 };
+// static const uint8_t ns8250_port_sizes[NS8250_PORT_COUNT] = { 8, 8, 8, 8, 8, 8, 8 };
 
 static int
 ns8250_attach(dev_t parent)
@@ -134,6 +134,13 @@ ns8250_attach(dev_t parent)
 	// for (i = 0; i < NS8250_PORT_COUNT; i++) {
 	// 	DEV_PARENT_IOCTL(port, BUS_IOCTL_CHANNEL_SZ, 8);
 	// }
+
+	ns8250_open(port, 0, 0);
+	for (;;) {
+		ns8250_read(port, 0, &c, 1);
+		ns8250_write(port, 0, &c, 1);
+	}
+	ns8250_close(port, 0);
 
 	return 0;
 }
@@ -163,29 +170,33 @@ ns8250_open(dev_t device, unsigned int channel, int flags)
 
 	/* open all required parent channels */
 	for (i = 0; i < NS8250_PORT_COUNT; i++) {
-		DEV_PARENT_OPEN(device, i, 0);
+		if (DEV_PARENT_OPEN(device, i, 0)) {
+			return 1;
+		}
 	}
 
 	/* initialize device */
 	// ((struct tty *)device->config)->baud = 9600;
 
 	/* disable interrupts */
-	if (!bwrite(device, NS8250_PORT_INT_ENABLE, 0)) return 1;
+	if (bwrite(device, NS8250_PORT_INT_ENABLE, 0) < 1) return 1;
 	
 	/* enable DLAB */
-	if (!bwrite(device, NS8250_PORT_LINE_CTRL, 0x80)) return 1;
+	if (bwrite(device, NS8250_PORT_LINE_CTRL, 0x80) < 1) return 1;
 
 	/* set divisor to 3, 38400 baud */
-	if (!bwrite(device, NS8250_PORT_DIV_LO, 0x03)) return 1;
-	if (!bwrite(device, NS8250_PORT_DIV_HI, 0x00)) return 1;
+	if (bwrite(device, NS8250_PORT_DIV_LO, 0x03) < 1) return 1;
+	if (bwrite(device, NS8250_PORT_DIV_HI, 0x00) < 1) return 1;
 
 	/* 8 bytes, no parity, 1 stop bit */
 	byte = NS8250_LINE_CTRL_BITS_8 | NS8250_LINE_CTRL_PARITY_NONE | NS8250_LINE_CTRL_STOP_BITS_1;
-	if (!bwrite(device, NS8250_PORT_LINE_CTRL, byte)) return 1;
+	if (bwrite(device, NS8250_PORT_LINE_CTRL, byte) < 1) return 1;
 
 	/* enable interrupts */
-	// if (!bwrite(device, NS8250_PORT_INT_ID, 0xc7)) return 1;
+	if (bwrite(device, NS8250_PORT_INT_ID, 0xc7) < 1) return 1;
 
+	byte = NS8250_MODEM_CTRL_OUT2 | NS8250_MODEM_CTRL_OUT1 | NS8250_MODEM_CTRL_RTS | NS8250_MODEM_CTRL_DTR;
+	if (bwrite(device, NS8250_PORT_MODEM_CTRL, byte) < 1) return 1;
 	return 0;
 }
 
@@ -209,7 +220,8 @@ static int
 ns8250_read(dev_t device, unsigned int channel, void *buf, size_t n)
 {
 	uint8_t byte;
-	int i, ready = 0;
+	size_t i;
+	int ready = 0;
 
 	for (i = 0; i < n; i++) {
 		ready = 0;
@@ -220,7 +232,6 @@ ns8250_read(dev_t device, unsigned int channel, void *buf, size_t n)
 		DEV_PARENT_READ(device, NS8250_PORT_DATA, &((uint8_t *)buf)[i], 1);
 	}
 
-	//return 0;
 	return i;
 }
 
@@ -228,7 +239,21 @@ ns8250_read(dev_t device, unsigned int channel, void *buf, size_t n)
 static int
 ns8250_write(dev_t device, unsigned int channel, void *buf, size_t n)
 {
-	return DEV_PARENT_WRITE(device, 0, buf, n);
+	uint8_t byte;
+	size_t i;
+	int r, ready;
+
+	for (i = 0; i < n; i++) {
+		ready = 0;
+		do {
+			DEV_PARENT_READ(device, NS8250_PORT_LINE_STATUS, &byte, 1);
+			ready = byte & NS8250_LINE_STATUS_THRE;
+		} while (!ready);
+		if (DEV_PARENT_WRITE(device, 0, (uint8_t *)buf + i, 1) != 1) {
+			return i;
+		}
+	}
+	return n;
 }
 
 static int

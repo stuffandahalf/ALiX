@@ -56,9 +56,9 @@ struct dev {
 dev_t create_dev(struct dev *driver, unsigned int nchannels, dev_t parent);
 void destroy_dev(dev_t device);
 
-#define DEV_PARENT_CALL(dev, func, ...) (dev)->parent->driver->func \
+#define DEV_PARENT_CALL(dev, func, ...) ((dev)->parent->driver->func \
 	? dev->parent->driver->func((dev)->parent, __VA_ARGS__) \
-	: (0)
+	: (0))
 // #define DEV_PARENT_OPEN(dev, channel, flags) (dev)->parent->driver->open((dev)->parent, (channel), (flags))
 #define DEV_PARENT_OPEN(dev, channel, flags) DEV_PARENT_CALL((dev), open, (channel), (flags))
 #define DEV_PARENT_CLOSE(dev, channel) DEV_PARENT_CALL((dev), close, (channel))
