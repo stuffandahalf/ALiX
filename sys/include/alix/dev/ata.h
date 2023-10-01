@@ -41,6 +41,8 @@
 #define ATA_STATUS_RDY (1 << 6)
 #define ATA_STATUS_BSY (1 << 7)
 
+#define ATA_COMMAND_IDENTIFY 0xec
+
 #define ATA_DRIVE_SEL_MASTER 0xa0
 #define ATA_DRIVE_SEL_SLAVE 0xb0
 
