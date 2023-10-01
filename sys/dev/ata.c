@@ -16,22 +16,12 @@ static int ata_open(dev_t device, unsigned int channel, int flags);
 static int ata_close(dev_t device, unsigned int channel);
 static int ata_read(dev_t device, unsigned int channel, void *buf, size_t n);
 static int ata_write(dev_t device, unsigned int channel, void *buf, size_t n);
-static int ata_ioctl(dev_t device, unsigned long int request, ...);
+static int ata_ioctl(dev_t device, unsigned long int request, void **args, size_t nargs);
 
-struct dev ata = {
-	"ata",
+static int ata_identify(dev_t parent, uint8_t drvsel);
 
-	LIST_INIT,
-
-	ata_attach,
-	ata_detach,
-
-	ata_open,
-	ata_close,
-	ata_read,
-	ata_write,
-	ata_ioctl
-};
+#define ATA_FEATURES DEV_FALL
+struct dev ata = DEV_INIT(ata, ATA_FEATURES);
 
 #if 0
 static const struct resource_request init_reqs[] = {
@@ -114,7 +104,10 @@ static const size_t init_reqs_sz = LEN(init_reqs);
 static int
 ata_attach(dev_t parent)
 {
-	NOT_IMPLEMENTED();
+	ata_identify(parent, ATA_DRIVE_SEL_MASTER);
+	for (;;);
+	ata_identify(parent, ATA_DRIVE_SEL_SLAVE);
+
 	return 1;
 }
 
@@ -153,7 +146,7 @@ ata_write(dev_t device, unsigned int channel, void *buf, size_t n)
 }
 
 static int
-ata_ioctl(dev_t device, unsigned long int request, ...)
+ata_ioctl(dev_t device, unsigned long int request, void **args, size_t nargs)
 {
 	NOT_IMPLEMENTED();
 	return 0;
@@ -162,8 +155,26 @@ ata_ioctl(dev_t device, unsigned long int request, ...)
 
 /* drive commands */
 
-static void
-ata_identify(dev_t device)
+static int
+ata_identify(dev_t parent, uint8_t drvsel)
 {
+	uint8_t b;
+	uint16_t w;
+	int i;
 
+	for (i = 0; i < ATA_PORT_COUNT; i++) {
+		parent->driver->open(parent, i, 0);
+	}
+
+	b = 0;
+	parent->driver->write(parent, ATA_PORT_DRV_HEAD, drvsel);
+	parent->driver->write(parent, ATA_PORT_LBA_LO, &b, 1);
+	parent->driver->write(parent, ATA_PORT_LBA_MD, &b, 1);
+	parent->driver->write(parent, ATA_PORT_LBA_HI, &b, 1);
+
+	for (i = 0; i < ATA_PORT_COUNT; i++) {
+		parent->driver->close(parent, i);
+	}
+
+	return 0;
 }

@@ -20,7 +20,7 @@ struct dev {
 	int (*close)(dev_t device, unsigned int channel);
 	int (*read)(dev_t device, unsigned int channel, void *buffer, size_t n);
 	int (*write)(dev_t device, unsigned int channel, void *buffer, size_t n);
-	int (*ioctl)(dev_t device, unsigned long int request, ...);
+	int (*ioctl)(dev_t device, unsigned long int request, void **args, size_t nargs);
 };
 
 #define DEV_FATTACH (1 << 0)
@@ -38,8 +38,9 @@ struct dev {
 
 // #define DEV_FEATURES(drvnm, features) static const unsigned long int drvnm ## _features = (features)
 #define DEV_FEATURE_TEST(features, feature) ((features) & (feature))
-#define DEV_INIT(drvnm, features) { \
-	.name = (#drvnm), \
+#define DEV_INIT(drvnm, features) DEV_INIT3(drvnm, drvnm, features)
+#define DEV_INIT3(drvnm, instnm, features) { \
+	.name = (#instnm), \
 	.instances = LIST_INIT, \
 	 \
 	.attach = DEV_FEATURE_TEST((features), DEV_FATTACH) ? (drvnm ## _attach) : NULL, \
@@ -64,6 +65,6 @@ void destroy_dev(dev_t device);
 #define DEV_PARENT_CLOSE(dev, channel) DEV_PARENT_CALL((dev), close, (channel))
 #define DEV_PARENT_WRITE(dev, channel, buf, n) DEV_PARENT_CALL((dev), write, (channel), (buf), (n))
 #define DEV_PARENT_READ(dev, channel, buf, n) DEV_PARENT_CALL((dev), read, (channel), (buf), (n))
-#define DEV_PARENT_IOCTL(dev, channel, ...) DEV_PARENT_CALL((dev), ioctl, (channel), __VA_ARGS__)
+#define DEV_PARENT_IOCTL(dev, channel, args, nargs) DEV_PARENT_CALL((dev), ioctl, (channel), (args), (nargs))
 
 #endif /* ALIX_DEV_H */

@@ -18,22 +18,10 @@ static int ns8250_open(dev_t device, unsigned int channel, int flags);
 static int ns8250_close(dev_t device, unsigned int channel);
 static int ns8250_read(dev_t device, unsigned int channel, void *buf, size_t n);
 static int ns8250_write(dev_t device, unsigned int channel, void *buf, size_t n);
-static int ns8250_ioctl(dev_t device, unsigned long int request, ...);
+static int ns8250_ioctl(dev_t device, unsigned long int request, void **args, size_t nargs);
 
-struct dev ns8250 = {
-	"ttyNS",
-
-	LIST_INIT,
-
-	ns8250_attach,
-	ns8250_detach,
-
-	ns8250_open,
-	ns8250_close,
-	ns8250_read,
-	ns8250_write,
-	ns8250_ioctl
-};
+#define NS8250_FEATURES DEV_FALL
+struct dev ns8250 = DEV_INIT3(ns8250, ttyNS, NS8250_FEATURES);
 
 #if 0
 static const struct resource_request init_reqs[] = {
@@ -131,16 +119,19 @@ ns8250_attach(dev_t parent)
 		destroy_dev(port);
 		return 1;
 	}
+
 	// for (i = 0; i < NS8250_PORT_COUNT; i++) {
 	// 	DEV_PARENT_IOCTL(port, BUS_IOCTL_CHANNEL_SZ, 8);
 	// }
 
+#if 0
 	ns8250_open(port, 0, 0);
 	for (;;) {
 		ns8250_read(port, 0, &c, 1);
 		ns8250_write(port, 0, &c, 1);
 	}
 	ns8250_close(port, 0);
+#endif
 
 	return 0;
 }
@@ -257,7 +248,7 @@ ns8250_write(dev_t device, unsigned int channel, void *buf, size_t n)
 }
 
 static int
-ns8250_ioctl(dev_t device, unsigned long int request, ...)
+ns8250_ioctl(dev_t device, unsigned long int request, void **args, size_t nargs)
 {
 	NOT_IMPLEMENTED();
 	return 0;

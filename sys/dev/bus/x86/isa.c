@@ -20,7 +20,7 @@ static int isa_open(dev_t device, unsigned int channel, int flags);
 static int isa_close(dev_t device, unsigned int channel);
 static int isa_read(dev_t device, unsigned int channel, void *buffer, size_t n);
 static int isa_write(dev_t device, unsigned int channel, void *buffer, size_t n);
-static int isa_ioctl(dev_t device, unsigned long int request, ...);
+static int isa_ioctl(dev_t device, unsigned long int request, void **args, size_t nargs);
 
 #define BDA_ADDR ((void *)0x0400)
 #define BDA_COMPORTS_SZ 4
@@ -51,7 +51,7 @@ uint16_t ata_ports[][2] = {
 	{ 0x1e8, 0x3e6 },
 	{ 0x168, 0x366 }
 };
-size_t ata_ports_cnt = LEN(ata_ports);
+// size_t ata_ports_cnt = LEN(ata_ports);
 
 #define ISA_FEATURES DEV_FALL
 struct dev isa = DEV_INIT(isa, ISA_FEATURES);
@@ -83,9 +83,9 @@ struct isa_config {
 	struct isa_port *ports;
 };
 
-#define TOTAL_PORTS (1 << 16)
-#define PORT_WORDS (TOTAL_PORTS / 16)
-uint16_t open_ports[PORT_WORDS] = { 0 };
+// #define TOTAL_PORTS (1 << 16)
+// #define PORT_WORDS (TOTAL_PORTS / 16)
+// uint16_t open_ports[PORT_WORDS] = { 0 };
 
 #define in_fnc(sz, nm, reg) \
 static uint##sz##_t \
@@ -164,6 +164,12 @@ new_cfg(uint8_t n)
 	return cfg;
 }
 
+#define CONFIGURE_PORT(cfg, i, p, r, w) { \
+	cfg->ports[i].port = (p); \
+	cfg->ports[i].read_sz = (r); \
+	cfg->ports[i].write_sz = (w); \
+}
+
 static int
 isa_attach(dev_t parent)
 {
@@ -181,7 +187,7 @@ isa_attach(dev_t parent)
 			kloglu(bda->com_ports[i], 16);
 			klogc('\n');
 
-			bus = create_dev(&isa, 0, parent);
+			bus = create_dev(&isa, NS8250_PORT_COUNT, parent);
 			if (!bus) {
 				klogs("Failed to create dev COM");
 				kloglu(i, 10);
@@ -195,9 +201,7 @@ isa_attach(dev_t parent)
 				continue;
 			}
 			for (j = 0; j < NS8250_PORT_COUNT; j++) {
-				config->ports[j].port = bda->com_ports[i] + j;
-				config->ports[j].read_sz = 8;
-				config->ports[j].write_sz = 8;
+				CONFIGURE_PORT(config, j, bda->com_ports[i] + j, 8, 8);
 			}
 
 			bus->config = config;
@@ -220,11 +224,22 @@ isa_attach(dev_t parent)
 		}
 	}
 
-	for (i = 0; i < ata_ports_cnt; i++) {
-		bus = create_dev(&isa, 0, parent);
+	for (i = 0; i < LEN(ata_ports); i++) {
+		bus = create_dev(&isa, ATA_PORT_COUNT, parent);
 		if (!bus) {
 			continue;
 		}
+		config = new_cfg(ATA_PORT_COUNT);
+
+		for (j = 0; j < ATA_IO_PORT_COUNT; j++) {
+			CONFIGURE_PORT(config, j, ata_ports[i][0] + j, 16, 16);
+		}
+		CONFIGURE_PORT(config, ATA_PORT_DRV_HEAD, ata_ports[i][0] + ATA_PORT_DRV_HEAD, 8, 8);
+		CONFIGURE_PORT(config, ATA_PORT_STATUS, ata_ports[i][0] + ATA_PORT_STATUS, 8, 8);
+		for (j = 0; j < ATA_CTRL_PORT_COUNT; j++) {
+			CONFIGURE_PORT(config, j, ata_ports[i][1] + j, 8, 8);
+		}
+		// config->ports[i]
 		// config = kalloc(sizeof(struct isa_config));
 		// if (!config) {
 		// 	destroy_dev(bus);
@@ -243,7 +258,7 @@ isa_attach(dev_t parent)
 		// LIST_INITIALIZE(&port_config.port_widths);
 		// LIST_APPEND(struct isa_port_config, &config->regions, port_config);
 
-		// bus->config = config;
+		bus->config = config;
 		if (ata.attach(bus)) {
 			// free_isa_config(config);
 			del_cfg(config);
@@ -375,7 +390,7 @@ isa_write(dev_t device, unsigned int channel, void *buffer, size_t n)
 }
 
 static int
-isa_ioctl(dev_t device, unsigned long int request, ...)
+isa_ioctl(dev_t device, unsigned long int request, void **args, size_t nargs)
 {
 	NOT_IMPLEMENTED();
 	return 0;
