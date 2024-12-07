@@ -55,6 +55,7 @@ struct dev {
 }
 
 dev_t create_dev(struct dev *driver, unsigned int nchannels, dev_t parent);
+void add_dev(dev_t device);
 void destroy_dev(dev_t device);
 
 #define DEV_PARENT_CALL(dev, func, ...) ((dev)->parent->driver->func \

@@ -1,5 +1,5 @@
 #ifndef ALIX_DEVICE_H
-#define ALIX_DEVICE H 1
+#define ALIX_DEVICE_H 1
 
 struct bus;
 struct dev;

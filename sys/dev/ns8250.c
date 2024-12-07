@@ -7,7 +7,6 @@
 #include <alix/mem.h>
 #include <alix/util.h>
 
-#include <alix/dev/class/bus.h>
 #include <alix/dev/class/tty.h>
 #include <alix/dev/ns8250.h>
 
@@ -99,6 +98,12 @@ static const size_t init_reqs_sz = LEN(init_reqs);
 
 // static const uint8_t ns8250_port_sizes[NS8250_PORT_COUNT] = { 8, 8, 8, 8, 8, 8, 8 };
 
+int
+ns8250_test(dev_t instance)
+{
+	return 0;
+}
+
 static int
 ns8250_attach(dev_t parent)
 {
@@ -113,9 +118,14 @@ ns8250_attach(dev_t parent)
 	if (!port) {
 		return 1;
 	}
-	port->config = kalloc(sizeof(struct tty));
-	if (!port->config) {
-		klogs("Failed to allocate tty");
+	if (!tty_init(port, NULL)) {
+		klogs("Failed to initialize tty\n");
+		destroy_dev(port);
+		return 1;
+	}
+
+	if (ns8250_test(port)) {\
+		klogs("Loopback test failed\n");
 		destroy_dev(port);
 		return 1;
 	}
@@ -132,6 +142,8 @@ ns8250_attach(dev_t parent)
 	}
 	ns8250_close(port, 0);
 #endif
+
+	add_dev(port);
 
 	return 0;
 }

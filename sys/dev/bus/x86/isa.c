@@ -165,9 +165,9 @@ new_cfg(uint8_t n)
 }
 
 #define CONFIGURE_PORT(cfg, i, p, r, w) { \
-	cfg->ports[i].port = (p); \
-	cfg->ports[i].read_sz = (r); \
-	cfg->ports[i].write_sz = (w); \
+	(cfg)->ports[(i)].port = (p); \
+	(cfg)->ports[(i)].read_sz = (r); \
+	(cfg)->ports[(i)].write_sz = (w); \
 }
 
 static int
@@ -210,6 +210,8 @@ isa_attach(dev_t parent)
 				bus->config = NULL;
 				destroy_dev(bus);
 				continue;
+			} else {
+				add_dev(bus);
 			}
 		}
 	}
@@ -224,6 +226,7 @@ isa_attach(dev_t parent)
 		}
 	}
 
+	return 0;
 	for (i = 0; i < LEN(ata_ports); i++) {
 		bus = create_dev(&isa, ATA_PORT_COUNT, parent);
 		if (!bus) {

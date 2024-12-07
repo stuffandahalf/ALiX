@@ -89,15 +89,40 @@ create_dev(struct dev *driver, unsigned int nchannels, dev_t parent)
 		LIST_APPEND(struct dev *, &drivers, driver);
 	}
 
+	/* find first free index of device instance to create device name */
 	for (i = 0; i < driver->instances.length && driver->instances.list[i] != NULL; i++);
 	d->name = mkdevnm(driver, i);
-	klogs(d->name);
-	klogc('\n');
+
 	LIST_INSERT(dev_t, &driver->instances, i, d);
 
-	LIST_APPEND(dev_t, &devices, d);
+#ifndef NDEBUG
+	klogs("created device ");
+	klogs(d->name);
+	klogc('\n');
+#endif
 
 	return d;
+}
+
+void
+add_dev(dev_t newdev)
+{
+	/* TODO: make sure device doesn't already exist */
+
+	if (!newdev) {
+		return;
+	}
+
+	LIST_APPEND(dev_t, &devices, newdev);
+
+	klogs(newdev->name);
+	klogs(" attached on ");
+	if (newdev->parent) {
+		klogs(newdev->parent->name);
+	} else {
+		klogs("root");
+	}
+	klogc('\n');
 }
 
 void
