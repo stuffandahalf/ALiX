@@ -1,12 +1,19 @@
 #ifndef __ALIX_LIBC_REGEX_H
 #define __ALIX_LIBC_REGEX_H 1
 
-#include "_std.h"
+#include "_cstd.h"
 
 /* include size_t */
 #include <sys/types.h>
 
-typedef regoff_t off_t;
+typedef struct regex_t {
+	unsigned int re_flags;
+	size_t re_nsub;		/* number of parenthesized subexpressions */
+	struct regpath *re_paths;
+	ssize_t re_npaths;
+} regex_t;
+
+typedef ssize_t regoff_t;
 
 typedef struct regmatch_t {
 	regoff_t rm_so;		/* string offset of match */
@@ -25,7 +32,7 @@ typedef struct regmatch_t {
 
 /* return values */
 #define REG_NOMATCH		1	/* regexec() failed to match() */
-#define REG_BATPAT		2	/* invalid regular expression */
+#define REG_BADPAT		2	/* invalid regular expression */
 #define REG_ECOLLATE	3	/* invalid collating element referenced */
 #define REG_ECTYPE		4	/* invalid character class type referenced */
 #define REG_EESCAPE		5	/* trailing '\' in pattern */
@@ -37,7 +44,7 @@ typedef struct regmatch_t {
 #define REG_ERANGE		11	/* invalid endpoint in range expression */
 #define REG_ESPACE		12	/* out of memory */
 #define REG_BADRPT		13	/* '?', '*', '+' not preceded by valid regular expression */
-#define REG_ENOSYS		14	/* reserved */
+#define REG_ENULLPTR	14	/* re pointer is NULL */
 
 extern int regcomp(regex_t *RESTRICT, const char *RESTRICT, int);
 extern size_t regerror(int, const regex_t *RESTRICT, char *RESTRICT, size_t);
